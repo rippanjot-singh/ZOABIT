@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const app = express();
 const plansRoutes = require('./routes/plans.routes');
 const subscriptionRoutes = require('./routes/subscription.routes');
@@ -28,7 +29,7 @@ app.use('/api/webhook', webhookRoutes);
 app.use(express.json());
 app.use(cookieParser());
 
-app.use(express.static("public"))
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/plans', plansRoutes);
@@ -40,5 +41,9 @@ app.use('/api/onboard', onBoardRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/inquiry', inquiryRoutes);
 app.use('/api/analytics', analyticsRoutes);
+
+app.get("*name", (req, res) => {
+    res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
 
 module.exports = app;
