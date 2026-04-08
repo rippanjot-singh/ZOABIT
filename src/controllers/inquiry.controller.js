@@ -1,5 +1,5 @@
 const inquiryModel = require("../model/inquiry.model");
-const chatBotModel = require("../model/chatbot.model");
+const chatBotModel = require("../model/chatBot.model");
 
 const getInquiriesController = async (req, res) => {
     try {

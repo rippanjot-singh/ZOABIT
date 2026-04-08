@@ -1,5 +1,5 @@
 const user = require('../model/user.model');
-const chatBotModel = require('../model/chatbot.model');
+const chatBotModel = require('../model/chatBot.model');
 const inquiryModel = require('../model/inquiry.model');
 
 async function isOnboarded(req, res) {

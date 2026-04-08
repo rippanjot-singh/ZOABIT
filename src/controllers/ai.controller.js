@@ -1,5 +1,5 @@
 const { vectorDB } = require("../config/db");
-const chatBotModel = require("../model/chatbot.model");
+const chatBotModel = require("../model/chatBot.model");
 const { modelWithTools } = require("../services/ai.service");
 const { scrape } = require("../utils/scrape.utils");
 const multer = require("multer");
