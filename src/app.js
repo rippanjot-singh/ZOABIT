@@ -30,6 +30,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, "..", "public")));
+app.use("/widget", express.static(path.join(__dirname, "..", "widget")));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/plans', plansRoutes);
