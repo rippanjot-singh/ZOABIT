@@ -1,6 +1,6 @@
 const { vectorDB } = require("../config/db");
 const chatBotModel = require("../model/chatBot.model");
-const { modelWithTools } = require("../services/ai.service");
+const { getChatModel } = require("../services/ai.service");
 const { scrape } = require("../utils/scrape.utils");
 const multer = require("multer");
 const { PDFParse } = require("pdf-parse");
@@ -64,9 +64,14 @@ async function makePromptwithWebsiteData(req, res) {
         }
         console.log("Scraped data: " + data);
         console.log(JSON.stringify(data, null, 2));
+        
+        const chatBot = await chatBotModel.findById(req.params.chatbotId);
+        if(!chatBot) return res.status(404).json({ success: false, message: "Chatbot not found" });
+
+        const { model } = getChatModel({ provider: 'mistral-ai' });
         const promptwithdata = prompt + "\n\n" + JSON.stringify(data, null, 2);
 
-        const result = await modelWithTools.invoke(promptwithdata);
+        const result = await model.invoke(promptwithdata);
         console.log(result.content);
         console.log('PROMPT RECEIVED');
 
@@ -106,9 +111,15 @@ async function makePromptwithPDFData(req, res) {
         const parser = new PDFParse(new Uint8Array(dataBuffer));
         const data = await parser.getText();
 
-        console.log(data.text)
+        console.log(data.text);
+        
+        const chatBot = await chatBotModel.findById(req.params.id);
+        if(!chatBot) return res.status(404).json({ success: false, message: "Chatbot not found" });
+
+        const { model } = getChatModel({ provider: 'mistral-ai' });
         const promptwithdata = prompt + "\n\n" + JSON.stringify(data.text, null, 2);
-        const result = await modelWithTools.invoke(promptwithdata)
+        
+        const result = await model.invoke(promptwithdata);
 
         const updatedChatBot = await chatBotModel.findByIdAndUpdate(req.params.id, {
             prompt: result.content

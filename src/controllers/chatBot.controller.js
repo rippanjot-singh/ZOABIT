@@ -1,8 +1,9 @@
 const chatBotModel = require("../model/chatBot.model");
-const { modelWithTools, buildModelWithTools } = require("../services/ai.service");
+const { buildModelWithTools } = require("../services/ai.service");
 const { SystemMessage, ToolMessage, HumanMessage, AIMessage } = require("@langchain/core/messages");
 const { createInquiryTool, buildIntegrationTools } = require("../services/ai.tools");
 const userModel = require("../model/user.model");
+const { encrypt } = require("../utils/apiEncrypt.utils");
 
 // --- STATIC TOOLS (Shared by every chatbot) ---
 const staticTools = {
@@ -20,9 +21,17 @@ async function askChatBotController(req, res) {
         const chatBot = await chatBotModel.findById(chatbotId).populate("userId", "messageCount messageLimit lastResetDate createdAt");
         if (!chatBot) return res.status(404).json({ success: false, message: 'Chatbot not found' });
 
+        console.log(`[Chat Debug] ID: ${chatbotId} | isBYOK: ${chatBot.isBYOK} | Status: ${chatBot.paymentStatus}`);
+
+        // 0. Safety Guard: Check if user data exists
+        if (!chatBot.userId) {
+            console.error(`[Chat Error] ❌ Chatbot ${chatbotId} has NO linked user!`);
+            return res.status(500).json({ success: false, message: "System Error: Chatbot owner record missing." });
+        }
+
         // Auto-Reset Logic (Monthly Anniversary)
         const now = new Date();
-        const lastReset = new Date(chatBot.userId.lastResetDate || chatBot.userId.createdAt);
+        const lastReset = new Date(chatBot.userId.lastResetDate || chatBot.userId.createdAt || now);
         const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
 
         if (now - lastReset >= thirtyDaysInMs) {
@@ -41,10 +50,20 @@ async function askChatBotController(req, res) {
             });
         }
 
+        // 1. BYOK Payment Verification
+        if (chatBot.isBYOK && chatBot.paymentStatus !== 'paid') {
+            console.log(`[Chat Debug] ⛔ Blocking unpaid BYOK bot: ${chatbotId}`);
+            return res.status(403).json({
+                success: false,
+                message: "BYOK Chatbot inactive. Please complete the $149 activation payment to use your own API key.",
+                data: { chatbotId }
+            });
+        }
+
         // Domain Verification (Skip for Dashboard/Playground or if no domains set)
         const origin = req.headers.origin;
-        const isDashboardRequest = origin?.includes('localhost') || origin?.includes('127.0.0.1'); 
-        
+        const isDashboardRequest = origin?.includes('localhost') || origin?.includes('127.0.0.1');
+
         const isVerified = isDashboardRequest || !chatBot.verifiedDomains || chatBot.verifiedDomains.length === 0 ||
             chatBot.verifiedDomains.some(domain => origin?.replace(/^https?:\/\//i, '') === domain);
 
@@ -64,13 +83,13 @@ async function askChatBotController(req, res) {
             allToolsMap[t.name] = t;
         }
 
-        const chatModel = buildModelWithTools(integrationTools);
+        const chatModel = buildModelWithTools(chatBot, integrationTools);
 
         // --- STEP 2: Configure System Prompt ---
         const integrationContext = (chatBot.integrations || []).length > 0
             ? `\n\nYou have access to the following live data tools:\n` +
-              chatBot.integrations.map(i => `- "${i.name}": (${i.provider}) ${i.description}`).join('\n') +
-              `\nUse these tools whenever the user's question relates to your linked Workspace documents.`
+            chatBot.integrations.map(i => `- "${i.name}": (${i.provider}) ${i.description}`).join('\n') +
+            `\nUse these tools whenever the user's question relates to your linked Workspace documents.`
             : '';
 
         const messages = [
@@ -109,10 +128,10 @@ async function askChatBotController(req, res) {
         // 2. Update Bot-Specific Analytics
         const today = new Date().toISOString().split('T')[0];
         chatBot.totalMessages = (chatBot.totalMessages || 0) + 1;
-        
+
         // Ensure analytics array exists
         if (!chatBot.analytics) chatBot.analytics = [];
-        
+
         const dayEntry = chatBot.analytics.find(a => a.date === today);
         if (dayEntry) {
             dayEntry.messages += 1;
@@ -134,9 +153,35 @@ async function askChatBotController(req, res) {
 
 async function createChatBotController(req, res) {
     try {
-        const { name, prompt, model, style, welcomeMessage, verifiedDomains } = req.body;
+        const user = await userModel.findById(req.user.userId);
+
+        const { name,
+            prompt,
+            provider,
+            model,
+            style,
+            greeting,
+            verifiedDomains,
+            isBYOK,
+            api } = req.body;
+
+        const chatbots = await chatBotModel.find({ userId: req.user.userId });
+
+        if (!isBYOK && chatbots.length >= user.chatbotLimit) {
+            return res.status(403).json({ success: false, message: "Chatbot limit reached. Upgrade your plan or use BYOK for unlimited agents." });
+        }
+        const EncryptedKey = api ? encrypt(api) : '';
+
         const chatbot = await chatBotModel.create({
-            name, prompt, model, style, welcomeMessage, verifiedDomains,
+            name,
+            prompt,
+            provider,
+            model,
+            style,
+            greeting,
+            verifiedDomains,
+            isBYOK,
+            EncryptedKey,
             userId: req.user.userId
         });
         res.status(201).json({ success: true, data: chatbot });
@@ -166,6 +211,13 @@ async function getChatBotController(req, res) {
 
 async function updateChatBotController(req, res) {
     try {
+        if (req.body.api && req.body.api !== '********************************') {
+            req.body.EncryptedKey = encrypt(req.body.api);
+            delete req.body.api;
+        } else if (req.body.api) {
+            delete req.body.api; // Remove stars without updating DB
+        }
+
         const chatbot = await chatBotModel.findOneAndUpdate(
             { _id: req.params.chatbotId, userId: req.user.userId },
             req.body,

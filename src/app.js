@@ -14,6 +14,7 @@ const onBoardRoutes = require('./routes/onBoard.routes');
 const userRoutes = require('./routes/user.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const inquiryRoutes = require('./routes/inquiry.routes');
+const paymentRoutes = require('./routes/payment.routes');
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -41,6 +42,7 @@ app.use('/api/google', googleRoutes);
 app.use('/api/onboard', onBoardRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/inquiry', inquiryRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 app.get("*name", (req, res) => {

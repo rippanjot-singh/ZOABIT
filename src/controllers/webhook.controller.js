@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const Subscription = require('../model/subscription.model');
 const userModel = require('../model/user.model');
+const chatBotModel = require('../model/chatBot.model');
 const { PLANS } = require('../config/plans');
 
 const handleWebhook = async (req, res) => {
@@ -19,29 +20,30 @@ const handleWebhook = async (req, res) => {
         }
 
         const event = JSON.parse(req.body.toString());
-        console.log(`[Webhook] ✅ Received Event: ${event.event}`);
-
-        const payload = event.payload?.subscription?.entity;
-        if (!payload) return res.json({ skip: true });
-
-        const userId = payload.notes?.userId;
-        const planSlug = payload.notes?.planName?.toLowerCase();
-        console.log(`[Webhook] Data -> User: ${userId}, Plan: ${planSlug}, SubID: ${payload.id}`);
+        console.log(`[Webhook] 📥 RAW EVENT: ${event.event}`);
 
         switch (event.event) {
             case 'subscription.activated':
-            case 'subscription.charged':
+            case 'subscription.charged': {
+                const payload = event.payload?.subscription?.entity;
+                if (!payload) {
+                    console.warn("[Webhook] ⚠️ No subscription payload found in entity");
+                    return res.json({ skip: true });
+                }
+                const userId = payload.notes?.userId;
+                const planSlug = payload.notes?.planName?.toLowerCase();
+                console.log(`[Webhook] 💳 Sub Event: ${event.event} | User: ${userId} | Plan: ${planSlug}`);
+
                 const updateData = {
                     status: 'active',
                     currentPeriodStart: new Date(payload.current_start * 1000),
                     currentPeriodEnd: new Date(payload.current_end * 1000),
                 };
                 
-                const sub = await Subscription.findOneAndUpdate(
+                await Subscription.findOneAndUpdate(
                     { razorpaySubId: { $regex: new RegExp(`^${payload.id}$`, 'i') } }, 
                     updateData
                 );
-                if (!sub) console.warn(`[Webhook] ⚠️ No database entry found for SubID: ${payload.id}`);
 
                 if (userId && PLANS[planSlug]) {
                     const planDetails = PLANS[planSlug];
@@ -51,20 +53,28 @@ const handleWebhook = async (req, res) => {
                         chatbotLimit: planDetails.chatbotLimit,
                         messageLimit: planDetails.messageLimit
                     });
-                    console.log(`[Webhook] User ${userId} upgraded to ${planSlug}`);
                 }
                 break;
+            }
 
-            case 'subscription.halted':
+            case 'subscription.halted': {
+                const payload = event.payload?.subscription?.entity;
+                if (!payload) return res.json({ skip: true });
+                console.log(`[Webhook] ⛔ Sub Halted: ${payload.id}`);
                 await Subscription.findOneAndUpdate(
                     { razorpaySubId: { $regex: new RegExp(`^${payload.id}$`, 'i') } }, 
                     { status: 'halted' }
                 );
-                console.log(`[Webhook] ⛔ Subscription Halted: ${payload.id}`);
                 break;
+            }
 
             case 'subscription.cancelled':
-            case 'subscription.expired':
+            case 'subscription.expired': {
+                const payload = event.payload?.subscription?.entity;
+                if (!payload) return res.json({ skip: true });
+                const userId = payload.notes?.userId;
+                console.log(`[Webhook] ❌ Sub Cancelled: ${payload.id}`);
+
                 await Subscription.findOneAndUpdate(
                     { razorpaySubId: { $regex: new RegExp(`^${payload.id}$`, 'i') } }, 
                     { status: 'cancelled' }
@@ -77,11 +87,52 @@ const handleWebhook = async (req, res) => {
                         messageLimit: PLANS.free.messageLimit
                     });
                 }
-                console.log(`[Webhook] ❌ Subscription Cancelled: ${payload.id} for user ${userId}`);
                 break;
+            }
+
+            case 'payment.captured': {
+                const paymentPayload = event.payload?.payment?.entity;
+                console.log(`[Webhook] 💰 Payment Captured Event: ${paymentPayload?.id}`);
+                const chatbotId = paymentPayload?.notes?.chatbotId;
+                
+                if (paymentPayload?.notes?.type === 'byok_activation' && chatbotId) {
+                    // Use findOne to be more explicit
+                    const updated = await chatBotModel.findOneAndUpdate(
+                        { _id: chatbotId },
+                        { paymentStatus: 'paid' },
+                        { new: true }
+                    );
+
+                    if (updated) {
+                        console.log(`[Webhook] ✅ BYOK Chatbot Activated by ID: ${chatbotId} (${updated.name})`);
+                    } else {
+                        console.warn(`[Webhook] ⚠️ Chatbot NOT found by ID: ${chatbotId}. Trying fallback by name...`);
+                        
+                        // Fallback: Try finding by name and userId
+                        const fallbackBot = await chatBotModel.findOneAndUpdate(
+                            { 
+                                name: paymentPayload.notes.chatbotName, 
+                                userId: paymentPayload.notes.userId,
+                                isBYOK: true 
+                            },
+                            { paymentStatus: 'paid' },
+                            { new: true }
+                        );
+
+                        if (fallbackBot) {
+                            console.log(`[Webhook] ✅ BYOK Chatbot Activated by Fallback: ${fallbackBot._id} (${fallbackBot.name})`);
+                        } else {
+                            console.error(`[Webhook] ❌ CRITICAL: No chatbot found by ID or Name!`);
+                        }
+                    }
+                } else {
+                    console.log(`[Webhook] ℹ️ Non-BYOK payment or missing notes. Skipping activation.`);
+                }
+                break;
+            }
 
             case 'payment.refunded':
-                console.log(`[Webhook] 💸 Payment Refunded: ${payload.id}`);
+                console.log(`[Webhook] 💸 Payment Refunded`);
                 break;
         }
 

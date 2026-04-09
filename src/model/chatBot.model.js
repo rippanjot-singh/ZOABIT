@@ -17,6 +17,10 @@ const chatBotSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    provider: {
+        type: String,
+        default: 'Mistral-Ai'
+    },
     model: {
         type: String,
         default: 'open-mistral-nemo'
@@ -101,6 +105,15 @@ const chatBotSchema = new mongoose.Schema({
     isBYOK: {
         type: Boolean,
         default: false
+    },
+    EncryptedKey: {
+        type: String,
+        default: ''
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['paid', 'not-paid', 'pending'],
+        default: 'not-paid'
     },
     scrappedData: {
         type: String,
