@@ -15,12 +15,12 @@
     "uuid": "9.0.1"
   },
   "dependencies": {
-    "uuid": "9.0.1",
     "@langchain/core": "^1.1.38",
     "@langchain/google-genai": "^2.1.26",
     "@langchain/mistralai": "^1.0.7",
     "@langchain/textsplitters": "^1.0.1",
     "@pinecone-database/pinecone": "^7.1.0",
+    "@sparticuz/chromium": "^133.0.0",
     "axios": "^1.14.0",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
@@ -35,9 +35,10 @@
     "mongoose": "^9.3.3",
     "multer": "^2.1.1",
     "pdf-parse": "^2.4.5",
-    "puppeteer": "^24.40.0",
+    "puppeteer-core": "^24.40.0",
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.3",
+    "uuid": "9.0.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

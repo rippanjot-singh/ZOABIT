@@ -1,11 +1,16 @@
-const puppeteer = require("puppeteer");
-const fs = require("fs");
+const puppeteer = require("puppeteer-core");
+const chromium = require("@sparticuz/chromium");
 const cheerio = require("cheerio");
 const { rag, getReleventdata } = require("../services/rag.service");
-const { log } = require("console");
 
 async function scrape(url) {
-    const browser = await puppeteer.launch();
+    const executablePath = await chromium.executablePath();
+    const browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath,
+        headless: chromium.headless,
+    });
     const page = await browser.newPage();
     let allData = "";
     console.log("Scraping: " + url);
