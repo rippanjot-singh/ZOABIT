@@ -138,7 +138,8 @@ async function googleCallbackLoginController(req, res) {
             maxAge: 3 * 24 * 60 * 60 * 1000 // 3 days
         });
 
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const frontendUrl = process.env.FRONTEND_URL;
+        if (!frontendUrl) throw new Error('FRONTEND_URL env variable is not set');
         const redirectUrl = user.isOnboarded ? `${frontendUrl}/dashboard` : `${frontendUrl}/onboarding`;
         res.redirect(redirectUrl);
     } catch (error) {

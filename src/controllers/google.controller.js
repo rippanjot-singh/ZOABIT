@@ -78,7 +78,8 @@ async function googleCallbackController(req, res) {
                 maxAge: 180 * 24 * 60 * 60 * 1000 // 180 days
             });
 
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+            const frontendUrl = process.env.FRONTEND_URL;
+            if (!frontendUrl) throw new Error('FRONTEND_URL env variable is not set');
             return res.redirect(`${frontendUrl}${returnTo}`);
         }
 
@@ -109,7 +110,8 @@ async function googleCallbackController(req, res) {
                 console.log(`[Google Connect]: Workspace successfully connected for ${user.email}`);
             }
 
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+            const frontendUrl = process.env.FRONTEND_URL;
+            if (!frontendUrl) throw new Error('FRONTEND_URL env variable is not set');
             return res.redirect(`${frontendUrl}${returnTo}`);
         }
 
