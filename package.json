@@ -12,9 +12,10 @@
   "license": "ISC",
   "type": "commonjs",
   "overrides": {
-    "uuid": "^9.0.0"
+    "uuid": "9.0.1"
   },
   "dependencies": {
+    "uuid": "9.0.1",
     "@langchain/core": "^1.1.38",
     "@langchain/google-genai": "^2.1.26",
     "@langchain/mistralai": "^1.0.7",
