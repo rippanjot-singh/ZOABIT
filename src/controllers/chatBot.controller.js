@@ -120,6 +120,15 @@ async function askChatBotController(req, res) {
             });
         }
 
+        // Handle Google 503 Service Unavailable (temporary overload)
+        if (error.status === 503 || error.message?.includes('503') || error.message?.includes('high demand')) {
+            return res.status(503).json({
+                success: false,
+                message: "Google's AI is currently experiencing high demand. Please try again in a few moments.",
+                error: "Service Temporarily Unavailable"
+            });
+        }
+
         res.status(500).json({ 
             success: false, 
             message: "Failed to generate response.", 
@@ -140,6 +149,13 @@ async function createChatBotController(req, res) {
         }
 
         const EncryptedKey = validated.api ? encrypt(validated.api) : '';
+        
+        // Force server defaults for managed agents
+        if (!validated.isBYOK) {
+            validated.provider = 'Mistral-Ai';
+            validated.model = 'open-mistral-nemo';
+        }
+
         const chatbot = await chatBotModel.create({
             ...validated,
             EncryptedKey,
@@ -174,10 +190,22 @@ async function getChatBotController(req, res) {
 async function updateChatBotController(req, res) {
     try {
         const validated = updateChatBotSchema.parse(req.body);
-        if (validated.api && validated.api !== '********************************') {
-            validated.EncryptedKey = encrypt(validated.api);
+        
+        const existingBot = await chatBotModel.findOne({ _id: req.params.chatbotId, userId: req.user.userId });
+        if (!existingBot) return res.status(404).json({ success: false, message: "Not found" });
+
+        // Force server defaults for managed agents
+        if (!existingBot.isBYOK) {
+            validated.provider = 'Mistral-Ai';
+            validated.model = 'open-mistral-nemo';
             delete validated.api;
-        } else delete validated.api;
+            delete validated.EncryptedKey;
+        } else {
+            if (validated.api && validated.api !== '********************************') {
+                validated.EncryptedKey = encrypt(validated.api);
+                delete validated.api;
+            } else delete validated.api;
+        }
 
         const chatbot = await chatBotModel.findOneAndUpdate(
             { _id: req.params.chatbotId, userId: req.user.userId },

@@ -9,8 +9,14 @@ const { createInquiryTool } = require("./ai.tools");
  * Universal AI Model Factory
  */
 function getChatModel(chatBot) {
-    const provider = (chatBot.provider || 'mistral-ai').toLowerCase();
-    const modelName = chatBot.model;
+    let provider = (chatBot.provider || 'mistral-ai').toLowerCase();
+    let modelName = chatBot.model;
+    
+    // Safety guard: retroactively fix any non-BYOK agents saved with wrong providers
+    if (!chatBot.isBYOK) {
+        provider = 'mistral-ai';
+        modelName = 'open-mistral-nemo';
+    }
     
     // 1. Resolve API Key (Database for BYOK, Env for standard)
     let apiKey = '';
