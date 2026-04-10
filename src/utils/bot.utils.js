@@ -1,3 +1,5 @@
+
+
 /**
  * Verifies if the request origin is allowed for a specific chatbot.
  * @param {string} origin - Request origin header.
@@ -5,7 +7,8 @@
  * @returns {boolean}
  */
 const isDomainVerified = (origin, chatBot) => {
-    const isDashboardRequest = origin?.includes('localhost') || origin?.includes('127.0.0.1');
+    const frontend_url = process.env.FRONTEND_URL.replace(/^https?:\/\/(www\.)?/, "");
+    const isDashboardRequest = origin?.includes('localhost') || origin?.includes('127.0.0.1') || origin?.includes(frontend_url);
 
     if (isDashboardRequest) return true;
     if (!chatBot.verifiedDomains || chatBot.verifiedDomains.length === 0) return true;
