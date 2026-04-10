@@ -133,8 +133,9 @@ async function createChatBotController(req, res) {
         const validated = chatBotSchema.parse(req.body);
         const user = await userModel.findById(req.user.userId);
         const chatbots = await chatBotModel.find({ userId: req.user.userId });
+        const managedChatbots = chatbots.filter(c => !c.isBYOK);
 
-        if (!validated.isBYOK && chatbots.length >= user.chatbotLimit) {
+        if (managedChatbots.length >= user.chatbotLimit) {
             return res.status(403).json({ success: false, message: "Chatbot limit reached." });
         }
 
