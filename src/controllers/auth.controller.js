@@ -1,18 +1,18 @@
-const userModel = require("../model/user.model")
-const jwt = require('jsonwebtoken');
+const userModel = require("../model/user.model");
+const { generateToken, setAuthCookie } = require('../utils/auth.utils');
+const { registerSchema, loginSchema } = require('../validators/auth.validator');
 const { getAuthUrl, getTokens, getUserInfo } = require('../services/google.service');
 
 //-------------- REGISTER USER --------------//
 async function userRegisterController(req, res) {
     try {
-        const { name, email, password } = req.body;
+        const validated = registerSchema.parse(req.body);
+        const { name, email, password } = validated;
 
-        const isUserExists = await userModel.findOne({
-            email: email
-        })
+        const isUserExists = await userModel.findOne({ email });
 
         if (isUserExists) {
-            return res.status(422).json({ message: "User already exists", status: 'failed' })
+            return res.status(422).json({ message: "User already exists", status: 'failed' });
         }
 
         const user = await userModel.create({
@@ -21,75 +21,65 @@ async function userRegisterController(req, res) {
             password,
         });
 
-        const token = jwt.sign({ userId: user._id, email: user.email }, process.env.JWT_SECRET, {
-            expiresIn: "3d"
-        })
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.COOKIE_SECURE === "true",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 3 * 24 * 60 * 60 * 1000 // 3 days
-        });
+        const token = generateToken(user);
+        setAuthCookie(res, token);
 
-
-        return res.status(201).json({ message: "User created successfully", status: 'success', user, isNewUser: true })
+        return res.status(201).json({ message: "User created successfully", status: 'success', user, isNewUser: true });
     } catch (error) {
-        process.stdout.write("SIGNUP ERROR: " + error.stack + "\n");
-        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message })
+        if (error.name === 'ZodError') {
+            return res.status(400).json({ message: error.errors[0].message, status: 'failed' });
+        }
+        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message });
     }
 }
 
 //-------------- LOGIN USER --------------//
 async function userLoginController(req, res) {
     try {
-        const { email, password } = req.body;
-        const user = await userModel.findOne({
-            email: email
-        }).select("+password");
+        const validated = loginSchema.parse(req.body);
+        const { email, password } = validated;
+
+        const user = await userModel.findOne({ email }).select("+password");
         if (!user) {
-            return res.status(404).json({ message: "User not found", status: 'failed', user })
+            return res.status(404).json({ message: "User not found", status: 'failed' });
         }
+
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
-            return res.status(401).json({ message: "Invalid password", status: 'failed' })
+            return res.status(401).json({ message: "Invalid password", status: 'failed' });
         }
-        const token = jwt.sign({ userId: user._id, email: user.email }, process.env.JWT_SECRET, {
-            expiresIn: "3d"
-        })
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.COOKIE_SECURE === "true",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 3 * 24 * 60 * 60 * 1000 // 3 days
-        });
 
-        return res.status(200).json({ message: "User logged in successfully", status: 'success', user, token: token })
+        const token = generateToken(user);
+        setAuthCookie(res, token);
+
+        return res.status(200).json({ message: "User logged in successfully", status: 'success', user, token: token });
     } catch (error) {
-        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message })
+        if (error.name === 'ZodError') {
+            return res.status(400).json({ message: error.errors[0].message, status: 'failed' });
+        }
+        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message });
     }
 }
 
 //-------------- LOGOUT USER --------------//
 async function userLogoutController(req, res) {
     try {
-        res.clearCookie("token")
-        return res.status(200).json({ message: "User logged out successfully", status: 'success' })
+        res.clearCookie("token");
+        return res.status(200).json({ message: "User logged out successfully", status: 'success' });
     } catch (error) {
-        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message })
+        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message });
     }
 }
 
 async function me(req, res) {
     try {
-        const user = await userModel.findById(req.user.userId).select("-password")
+        const user = await userModel.findById(req.user.userId).select("-password");
         if (!user) {
-            return res.status(404).json({ message: "User not found", status: 'failed' })
+            return res.status(404).json({ message: "User not found", status: 'failed' });
         }
-        return res.status(200).json({ message: "User verified successfully", status: 'success', user })
+        return res.status(200).json({ message: "User verified successfully", status: 'success', user });
     } catch (error) {
-        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message })
+        return res.status(500).json({ message: "Internal server error", status: 'failed', error: error.message });
     }
 }
 
@@ -121,22 +111,13 @@ async function googleCallbackLoginController(req, res) {
             user = await userModel.create({
                 name,
                 email,
-                password: Math.random().toString(36).slice(-10), // Random password for Google users
+                password: Math.random().toString(36).slice(-10),
                 isGoogleUser: true
             });
         }
         
-        const token = jwt.sign({ userId: user._id, email: user.email }, process.env.JWT_SECRET, {
-            expiresIn: "3d"
-        });
-        
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.COOKIE_SECURE === "true",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 3 * 24 * 60 * 60 * 1000 // 3 days
-        });
+        const token = generateToken(user);
+        setAuthCookie(res, token);
 
         const frontendUrl = process.env.FRONTEND_URL;
         if (!frontendUrl) throw new Error('FRONTEND_URL env variable is not set');
@@ -154,4 +135,5 @@ module.exports = {
     me,
     googleLoginController,
     googleCallbackLoginController
-}
+};
+

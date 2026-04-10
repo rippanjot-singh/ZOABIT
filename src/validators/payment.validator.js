@@ -1,0 +1,21 @@
+const { z } = require('zod');
+
+const createBYOKOrderSchema = z.object({
+    chatbotName: z.string().min(1, "Chatbot name is required")
+});
+
+const createSubscriptionSchema = z.object({
+    planId: z.string().min(1, "Plan ID is required"),
+    userId: z.string().min(1, "User ID is required"),
+    planName: z.enum(['free', 'starter', 'pro', 'enterprise'])
+});
+
+const cancelSubscriptionSchema = z.object({
+    subscriptionId: z.string().min(1, "Subscription ID is required")
+});
+
+module.exports = {
+    createBYOKOrderSchema,
+    createSubscriptionSchema,
+    cancelSubscriptionSchema
+};

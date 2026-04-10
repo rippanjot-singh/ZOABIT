@@ -15,12 +15,25 @@ async function isOnboarded(req, res) {
 async function getDashboardData(req, res) {
     try {
         const { userId } = req.user;
-        const foundUser = await user.findById(userId)
+        const foundUser = await user.findById(userId);
         const chatbots = await chatBotModel.find({ userId: userId });
+        
+        // Split counts
         const totalChatbots = chatbots.length;
+        const totalManagedChatbots = chatbots.filter(b => !b.isBYOK).length;
+        
         const totalInquiries = await inquiryModel.countDocuments({ chatbotId: { $in: chatbots.map(chatbot => chatbot._id) } });
         const totalChats = chatbots.reduce((acc, chatbot) => acc + (chatbot.messageCount || 0), 0);
-        res.status(200).json({ message: "User data fetched successfully", user: foundUser, chatbots, totalChatbots, totalInquiries, totalChats });
+        
+        res.status(200).json({ 
+            message: "User data fetched successfully", 
+            user: foundUser, 
+            chatbots, 
+            totalManagedChatbots, 
+            totalChatbots, 
+            totalInquiries, 
+            totalChats 
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

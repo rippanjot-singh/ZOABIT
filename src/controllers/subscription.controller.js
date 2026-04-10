@@ -2,22 +2,20 @@ const razorpay = require('../config/razorpay');
 const Subscription = require('../model/subscription.model');
 const userModel = require('../model/user.model');
 const { PLANS } = require('../config/plans');
+const { createSubscriptionSchema, cancelSubscriptionSchema } = require('../validators/payment.validator');
 
 const createSubscription = async (req, res) => {
-    const { planId, userId, planName } = req.body;
-
     try {
+        const validated = createSubscriptionSchema.parse(req.body);
+        const { planId, userId, planName } = validated;
+
         const subscription = await razorpay.subscriptions.create({
             plan_id: planId,
             customer_notify: 1,
             total_count: 12,
-            notes: {
-                userId,
-                planName // 'starter', 'pro', or 'enterprise'
-            }
+            notes: { userId, planName }
         });
 
-        // Save to DB
         await Subscription.create({
             userId,
             razorpaySubId: subscription.id,
@@ -26,81 +24,63 @@ const createSubscription = async (req, res) => {
             status: 'created',
         });
 
-        
-
         res.json({
             subscriptionId: subscription.id,
             keyId: process.env.RAZORPAY_KEY_ID,
         });
     } catch (err) {
+        if (err.name === 'ZodError') return res.status(400).json({ success: false, message: err.errors[0].message });
         console.error("[Razorpay Subscription Create Error]:", err);
         res.status(500).json({ error: err.error?.description || err.message });
     }
 };
 
 const getSubscription = async (req, res) => {
-    const sub = await Subscription.findOne({ userId: req.params.userId });
-    res.json(sub);
+    try {
+        const sub = await Subscription.findOne({ userId: req.params.userId });
+        res.json(sub);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 const cancelSubscription = async (req, res) => {
-    const { subscriptionId } = req.body;
-
-    if (!subscriptionId) {
-        return res.status(400).json({ error: "Missing subscription ID." });
-    }
-
     try {
+        const validated = cancelSubscriptionSchema.parse(req.body);
+        const { subscriptionId } = validated;
         const cleanSubId = subscriptionId.trim();
-        console.log(`[Subscription] 🌀 Attempting to cancel (Exact ID): ${cleanSubId}`);
 
-        // 2. Cancel in Razorpay (false = cancel IMMEDIATELY)
         try {
-            console.log(`[Razorpay] 📤 Sending cancellation request for: ${cleanSubId}`);
             await razorpay.subscriptions.cancel(cleanSubId, false);
         } catch (rzpErr) {
-            console.error("[Razorpay Error Detail]:", rzpErr);
             const errorDesc = rzpErr.error?.description || rzpErr.description || rzpErr.message;
-            
-            // Only allow downgrade if it's ALREADY cancelled on RZP
-            if (errorDesc?.toLowerCase().includes('already cancelled')) {
-                console.log("[Razorpay] Subscription is already cancelled in RZP, proceeding with local cleanup.");
-            } else {
-                // For 'Invalid ID' or other errors, we STOP and fail.
-                const userWarning = errorDesc?.includes('invalid') 
-                    ? "Invalid ID. Check your Razorpay Dashboard manually to ensure you aren't being charged." 
-                    : errorDesc;
+            if (!errorDesc?.toLowerCase().includes('already cancelled')) {
+                const userWarning = errorDesc?.includes('invalid') ? "Invalid ID." : errorDesc;
                 return res.status(400).json({ error: userWarning });
             }
         }
 
-        // 3. Find sub record for detailed tracking
-        const sub = await Subscription.findOne({ 
-            razorpaySubId: { $regex: new RegExp(`^${cleanSubId}$`, "i") } 
-        });
-
-        // 4. Update in DB (Case-insensitive)
-        await Subscription.findOneAndUpdate(
+        const sub = await Subscription.findOneAndUpdate(
             { razorpaySubId: { $regex: new RegExp(`^${cleanSubId}$`, "i") } },
-            { status: 'cancelled' }
+            { status: 'cancelled' },
+            { new: true }
         );
 
-        // 5. Instantly Downgrade User Profile
-        if (sub && sub.userId) {
+        if (sub?.userId) {
             await userModel.findByIdAndUpdate(sub.userId, {
                 subscription: 'free',
                 subscriptionId: "",
                 chatbotLimit: PLANS.free.chatbotLimit,
                 messageLimit: PLANS.free.messageLimit
             });
-            console.log(`[Subscription] ✅ Account ${sub.userId} successfully reverted to Free.`);
         }
 
-        res.json({ success: true, message: "Subscription will be cancelled at the end of the current period." });
+        res.json({ success: true, message: "Subscription cancelled successfully." });
     } catch (err) {
+        if (err.name === 'ZodError') return res.status(400).json({ success: false, message: err.errors[0].message });
         console.error("[Razorpay Cancel Error]:", err);
         res.status(500).json({ error: "Internal server error during cancellation." });
     }
 };
 
-module.exports = { createSubscription, getSubscription, cancelSubscription };
+module.exports = { createSubscription, getSubscription, cancelSubscription };

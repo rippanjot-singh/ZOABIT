@@ -1,25 +1,19 @@
 const razorpay = require('../config/razorpay');
 const chatBotModel = require('../model/chatBot.model');
+const { createBYOKOrderSchema } = require('../validators/payment.validator');
 
-/**
- * Creates a Razorpay Order for BYOK Activation ($149)
- * Also creates the initial Chatbot record as 'not-paid'
- */
 const createBYOKOrder = async (req, res) => {
     try {
-        const { chatbotName } = req.body;
+        const validated = createBYOKOrderSchema.parse(req.body);
+        const { chatbotName } = validated;
         const userId = req.user.userId;
 
-        if (!chatbotName) return res.status(400).json({ error: "Chatbot name is required" });
-
-        // 1. Create the chatbot record first (inactive state)
-        // This ensures the webhook has an ID to work with
         const initialBot = await chatBotModel.create({
             name: chatbotName,
             userId: userId,
             isBYOK: true,
             paymentStatus: 'not-paid',
-            provider: 'mistral-ai', // Defaults to user preference
+            provider: 'Mistral-Ai',
             model: 'open-mistral-nemo',
             prompt: 'You are a helpful AI assistant.',
             greeting: 'Hello! How can I help you today?',
@@ -34,12 +28,9 @@ const createBYOKOrder = async (req, res) => {
             }
         });
 
-        const amount = 14900; 
-        const currency = 'INR';
-
         const options = {
-            amount,
-            currency,
+            amount: 14900, 
+            currency: 'INR',
             receipt: `byok_${initialBot._id}`,
             notes: {
                 type: 'byok_activation',
@@ -60,9 +51,11 @@ const createBYOKOrder = async (req, res) => {
             keyId: process.env.RAZORPAY_KEY_ID
         });
     } catch (error) {
+        if (error.name === 'ZodError') return res.status(400).json({ success: false, message: error.errors[0].message });
         console.error("[Razorpay Order Export Error]:", error);
         res.status(500).json({ error: error.message });
     }
 };
 
 module.exports = { createBYOKOrder };
+

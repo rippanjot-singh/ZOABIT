@@ -1,191 +1,152 @@
 const chatBotModel = require("../model/chatBot.model");
+const userModel = require("../model/user.model");
 const { buildModelWithTools } = require("../services/ai.service");
 const { SystemMessage, ToolMessage, HumanMessage, AIMessage } = require("@langchain/core/messages");
 const { createInquiryTool, buildIntegrationTools } = require("../services/ai.tools");
-const userModel = require("../model/user.model");
 const { encrypt } = require("../utils/apiEncrypt.utils");
+const { checkAndResetQuota, isQuotaExceeded } = require("../utils/usage.utils");
+const { isDomainVerified, isBYOKActive } = require("../utils/bot.utils");
+const { chatBotSchema, updateChatBotSchema, askChatBotSchema } = require("../validators/chatBot.validator");
 
-// --- STATIC TOOLS (Shared by every chatbot) ---
 const staticTools = {
     createInquiry: createInquiryTool
 };
 
-/**
- * Main Chat Endpoint: Logic for processing user messages and calling tools.
- */
 async function askChatBotController(req, res) {
     try {
+        const validated = askChatBotSchema.parse(req.body);
         const { chatbotId } = req.params;
-        const { question, history = [] } = req.body;
+        const { question, history = [] } = validated;
 
-        const chatBot = await chatBotModel.findById(chatbotId).populate("userId", "messageCount messageLimit lastResetDate createdAt");
+        const chatBot = await chatBotModel.findById(chatbotId).populate("userId");
         if (!chatBot) return res.status(404).json({ success: false, message: 'Chatbot not found' });
 
-        console.log(`[Chat Debug] ID: ${chatbotId} | isBYOK: ${chatBot.isBYOK} | Status: ${chatBot.paymentStatus}`);
-
-        // 0. Safety Guard: Check if user data exists
         if (!chatBot.userId) {
-            console.error(`[Chat Error] ❌ Chatbot ${chatbotId} has NO linked user!`);
             return res.status(500).json({ success: false, message: "System Error: Chatbot owner record missing." });
         }
 
-        // Auto-Reset Logic (Monthly Anniversary)
-        const now = new Date();
-        const lastReset = new Date(chatBot.userId.lastResetDate || chatBot.userId.createdAt || now);
-        const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
-
-        if (now - lastReset >= thirtyDaysInMs) {
-            chatBot.userId.messageCount = 0;
-            chatBot.userId.lastResetDate = now;
-            await chatBot.userId.save();
-        }
-
-        // Check Account Quota
-        if (chatBot.userId.messageCount >= chatBot.userId.messageLimit) {
+        // Quota Management
+        await checkAndResetQuota(chatBot.userId);
+        if (isQuotaExceeded(chatBot.userId)) {
             return res.status(403).json({
                 success: false,
                 message: "This account has reached its message limit.",
-                data: null,
                 messageCount: chatBot.userId.messageCount
             });
         }
 
-        // 1. BYOK Payment Verification
-        if (chatBot.isBYOK && chatBot.paymentStatus !== 'paid') {
-            console.log(`[Chat Debug] ⛔ Blocking unpaid BYOK bot: ${chatbotId}`);
+        // Feature Guards
+        if (!isBYOKActive(chatBot)) {
             return res.status(403).json({
                 success: false,
-                message: "BYOK Chatbot inactive. Please complete the $149 activation payment to use your own API key.",
+                message: "BYOK Chatbot inactive. Please complete the activation payment.",
                 data: { chatbotId }
             });
         }
 
-        // Domain Verification (Skip for Dashboard/Playground or if no domains set)
-        const origin = req.headers.origin;
-        const isDashboardRequest = origin?.includes('localhost') || origin?.includes('127.0.0.1');
-
-        const isVerified = isDashboardRequest || !chatBot.verifiedDomains || chatBot.verifiedDomains.length === 0 ||
-            chatBot.verifiedDomains.some(domain => origin?.replace(/^https?:\/\//i, '') === domain);
-
-        if (!isVerified) {
+        if (!isDomainVerified(req.headers.origin, chatBot)) {
             return res.status(403).json({
                 success: false,
                 message: "This domain is not authorized to use this widget.",
-                data: { chatbotId, origin },
-                messageCount: 0
+                data: { chatbotId, origin: req.headers.origin }
             });
         }
 
-        // --- STEP 1: Build Dynamic Tools Per-Request ---
         const integrationTools = await buildIntegrationTools(chatBot.integrations || [], chatBot.userId._id);
         const allToolsMap = { ...staticTools };
-        for (const t of integrationTools) {
-            allToolsMap[t.name] = t;
-        }
+        for (const t of integrationTools) allToolsMap[t.name] = t;
 
         const chatModel = buildModelWithTools(chatBot, integrationTools);
-
-        // --- STEP 2: Configure System Prompt ---
+        
         const integrationContext = (chatBot.integrations || []).length > 0
             ? `\n\nYou have access to the following live data tools:\n` +
-            chatBot.integrations.map(i => `- "${i.name}": (${i.provider}) ${i.description}`).join('\n') +
-            `\nUse these tools whenever the user's question relates to your linked Workspace documents.`
+              chatBot.integrations.map(i => `- "${i.name}": (${i.provider}) ${i.description}`).join('\n')
             : '';
 
         const messages = [
             new SystemMessage(
                 `${chatBot.prompt || 'You are a helpful AI assistant.'}\n` +
                 `Identity: Your name is "${chatBot.name}".\n` +
-                `Context IDs: chatbotId="${chatbotId}", userId="${chatBot.userId._id}".\n` +
-                `Instructions: If you lack information, ask for name/phone to save as lead.\n` +
+                `Context: chatbotId="${chatbotId}", userId="${chatBot.userId._id}".\n` +
                 integrationContext
             ),
             ...history.map(msg => msg.role === "user" ? new HumanMessage(msg.content) : new AIMessage(msg.content)),
             new HumanMessage(question)
         ];
 
-        // --- STEP 3: AI Invocation ---
         let response = await chatModel.invoke(messages);
 
-        // --- STEP 4: Parallel Tool Execution ---
-        if (response.tool_calls && response.tool_calls.length > 0) {
+        if (response.tool_calls?.length > 0) {
             const toolResults = await Promise.all(response.tool_calls.map(async (toolCall) => {
                 const toolToExecute = allToolsMap[toolCall.name];
-                if (toolToExecute) {
-                    const result = await toolToExecute.invoke(toolCall.args);
-                    return new ToolMessage({ tool_call_id: toolCall.id, content: typeof result === "string" ? result : JSON.stringify(result) });
-                }
-                return new ToolMessage({ tool_call_id: toolCall.id, content: `Error: Tool "${toolCall.name}" not found.` });
+                const result = toolToExecute 
+                    ? await toolToExecute.invoke(toolCall.args)
+                    : `Error: Tool "${toolCall.name}" not found.`;
+                return new ToolMessage({ tool_call_id: toolCall.id, content: typeof result === "string" ? result : JSON.stringify(result) });
             }));
-
             response = await chatModel.invoke([...messages, response, ...toolResults]);
         }
 
-        // 1. Update User Monthly Quota
-        chatBot.userId.messageCount += 1;
-        await chatBot.userId.save();
+        // Update Analytics
+        if(!chatBot.isBYOK){
+            chatBot.userId.messageCount += 1;
+            await chatBot.userId.save();
+        }
 
-        // 2. Update Bot-Specific Analytics
         const today = new Date().toISOString().split('T')[0];
         chatBot.totalMessages = (chatBot.totalMessages || 0) + 1;
-
-        // Ensure analytics array exists
         if (!chatBot.analytics) chatBot.analytics = [];
-
         const dayEntry = chatBot.analytics.find(a => a.date === today);
-        if (dayEntry) {
-            dayEntry.messages += 1;
-        } else {
-            chatBot.analytics.push({ date: today, messages: 1 });
-            // Maintain sliding window of 30 days for performance
-            if (chatBot.analytics.length > 30) chatBot.analytics.shift();
-        }
+        if (dayEntry) dayEntry.messages += 1;
+        else chatBot.analytics.push({ date: today, messages: 1 });
+        if (chatBot.analytics.length > 30) chatBot.analytics.shift();
         await chatBot.save();
 
         res.status(200).json({ success: true, data: response.content, messageCount: chatBot.userId.messageCount });
     } catch (error) {
-        console.error("[AI Chat Error]:", error);
-        res.status(500).json({ success: false, message: "Failed to generate response.", error: error.message });
+        console.error("[Chat Controller Error]:", error);
+        
+        // Handle Zod validation errors (400)
+        if (error.name === 'ZodError') {
+            return res.status(400).json({ success: false, message: error.errors[0].message });
+        }
+
+        // Handle specific AI Quota/Rate Limit errors (429)
+        if (error.status === 429 || error.message?.includes('429') || error.message?.includes('quota')) {
+            return res.status(429).json({ 
+                success: false, 
+                message: "AI quota exceeded for this model. Try switching providers (e.g., to Mistral) or wait a minute.",
+                error: "Rate limit reached" 
+            });
+        }
+
+        res.status(500).json({ 
+            success: false, 
+            message: "Failed to generate response.", 
+            error: error.message || "Unknown error" 
+        });
     }
 }
 
-// --- CRUD OPERATORS ---
-
 async function createChatBotController(req, res) {
     try {
+        const validated = chatBotSchema.parse(req.body);
         const user = await userModel.findById(req.user.userId);
-
-        const { name,
-            prompt,
-            provider,
-            model,
-            style,
-            greeting,
-            verifiedDomains,
-            isBYOK,
-            api } = req.body;
-
         const chatbots = await chatBotModel.find({ userId: req.user.userId });
 
-        if (!isBYOK && chatbots.length >= user.chatbotLimit) {
-            return res.status(403).json({ success: false, message: "Chatbot limit reached. Upgrade your plan or use BYOK for unlimited agents." });
+        if (!validated.isBYOK && chatbots.length >= user.chatbotLimit) {
+            return res.status(403).json({ success: false, message: "Chatbot limit reached." });
         }
-        const EncryptedKey = api ? encrypt(api) : '';
 
+        const EncryptedKey = validated.api ? encrypt(validated.api) : '';
         const chatbot = await chatBotModel.create({
-            name,
-            prompt,
-            provider,
-            model,
-            style,
-            greeting,
-            verifiedDomains,
-            isBYOK,
+            ...validated,
             EncryptedKey,
             userId: req.user.userId
         });
         res.status(201).json({ success: true, data: chatbot });
     } catch (error) {
+        if (error.name === 'ZodError') return res.status(400).json({ success: false, message: error.errors[0].message });
         res.status(500).json({ success: false, message: error.message });
     }
 }
@@ -211,20 +172,20 @@ async function getChatBotController(req, res) {
 
 async function updateChatBotController(req, res) {
     try {
-        if (req.body.api && req.body.api !== '********************************') {
-            req.body.EncryptedKey = encrypt(req.body.api);
-            delete req.body.api;
-        } else if (req.body.api) {
-            delete req.body.api; // Remove stars without updating DB
-        }
+        const validated = updateChatBotSchema.parse(req.body);
+        if (validated.api && validated.api !== '********************************') {
+            validated.EncryptedKey = encrypt(validated.api);
+            delete validated.api;
+        } else delete validated.api;
 
         const chatbot = await chatBotModel.findOneAndUpdate(
             { _id: req.params.chatbotId, userId: req.user.userId },
-            req.body,
+            validated,
             { new: true }
         );
         res.status(200).json({ success: true, data: chatbot });
     } catch (error) {
+        if (error.name === 'ZodError') return res.status(400).json({ success: false, message: error.errors[0].message });
         res.status(500).json({ success: false, message: error.message });
     }
 }

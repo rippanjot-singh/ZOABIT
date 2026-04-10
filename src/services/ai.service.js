@@ -12,50 +12,61 @@ function getChatModel(chatBot) {
     const provider = (chatBot.provider || 'mistral-ai').toLowerCase();
     const modelName = chatBot.model;
     
-    // 1. Resolve API Key strictly from Database
-    if (!chatBot.EncryptedKey) {
-        throw new Error(`No API Key found in database for chatbot: ${chatBot.name}`);
+    // 1. Resolve API Key (Database for BYOK, Env for standard)
+    let apiKey = '';
+    
+    // Safety check for encrypted key format
+    if (chatBot.EncryptedKey && chatBot.EncryptedKey.includes(':')) {
+        try {
+            apiKey = decrypt(chatBot.EncryptedKey).trim();
+        } catch (err) {
+            console.error("[Decrypt Error]:", err.message);
+        }
+    }
+    
+    if (!apiKey) {
+        // Fallback to system env keys based on provider
+        apiKey = provider.includes('google') ? process.env.GOOGLE_GENERATIVE_AI_API_KEY :
+                 provider.includes('openai') ? process.env.OPENAI_API_KEY :
+                 provider.includes('anthropic') ? process.env.ANTHROPIC_API_KEY :
+                 process.env.MISTRAL_API_KEY;
     }
 
-    const apiKey = decrypt(chatBot.EncryptedKey).trim();
+    if (!apiKey) {
+        throw new Error(`No API Key configured for provider: ${provider}`);
+    }
 
     // 2. Initialize Model
     const config = {
         apiKey,
         maxOutputTokens: 2048,
-        temperature: 0.7
+        temperature: 0.7,
+        maxRetries: 1 // Don't hang on rate limits
     };
 
     let model;
-    switch (provider) {
-        case 'google':
-            model = new ChatGoogleGenerativeAI({
-                ...config,
-                model: modelName || "gemini-2.0-flash",
-                apiVersion: "v1beta"
-            });
-            break;
-
-        case 'openai':
-            model = new ChatOpenAI({
-                ...config,
-                modelName: modelName || "gpt-4o-mini"
-            });
-            break;
-
-        case 'anthropic':
-            model = new ChatAnthropic({
-                ...config,
-                modelName: modelName || "claude-3-haiku-20240307"
-            });
-            break;
-
-        default:
-            model = new ChatMistralAI({
-                ...config,
-                model: modelName || "open-mistral-nemo"
-            });
-            break;
+    if (provider.includes('google')) {
+        model = new ChatGoogleGenerativeAI({
+            ...config,
+            model: modelName || "gemini-2.0-flash",
+            apiVersion: "v1beta"
+        });
+    } else if (provider.includes('openai')) {
+        model = new ChatOpenAI({
+            ...config,
+            modelName: modelName || "gpt-4o-mini"
+        });
+    } else if (provider.includes('anthropic')) {
+        model = new ChatAnthropic({
+            ...config,
+            modelName: modelName || "claude-3-haiku-20240307"
+        });
+    } else {
+        // Default to Mistral for everything else (mistral-ai, etc.)
+        model = new ChatMistralAI({
+            ...config,
+            model: modelName || "open-mistral-nemo"
+        });
     }
 
     return {

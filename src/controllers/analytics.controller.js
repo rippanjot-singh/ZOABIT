@@ -32,6 +32,7 @@ const getGlobalAnalytics = async (req, res) => {
                 combinedChartData[day.date].total += day.messages;
             });
         });
+        const managed = bots.filter(bot => !bot.isBYOK);
 
         // Convert chart data to sorted array
         const timeSeries = Object.values(combinedChartData)
@@ -43,7 +44,8 @@ const getGlobalAnalytics = async (req, res) => {
                 totalMessages,
                 totalBots: bots.length,
                 botStats,
-                timeSeries
+                timeSeries,
+                managedBots: managed.length
             }
         });
     } catch (error) {
