@@ -51,8 +51,9 @@
 
     if (history.length === 0) {
       const gText = greeting ? formatMarkdown(greeting) : "Hello!";
+      const greetingStyle = replyType === 'text' ? 'style-text' : '';
       html += `
-        <div class="msg-row bot">
+        <div class="msg-row bot ${greetingStyle}">
           <div class="msg-wrap">
             <div class="msg-avatar">${icons.bot}</div>
             <div class="bubble">${gText}</div>
@@ -268,7 +269,7 @@
       .style-text.msg-row.user .bubble,
       .style-text.msg-row.bot  .bubble {
         background: transparent; border: none; box-shadow: none;
-        border-bottom: 1px solid rgba(0,0,0,0.07);
+        // border-bottom: 1px solid rgba(0,0,0,0.07);
         border-radius: 0; padding: 6px 0;
       }
       .style-text.msg-row.user .bubble { color: ${senderBg}; }
