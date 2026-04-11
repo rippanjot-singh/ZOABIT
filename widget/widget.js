@@ -8,21 +8,21 @@
   const backendOrigin = new URL(currentScript.src).origin;
 
   // ── State ─────────────────────────────────────────────────────────────────
-  let isOpen      = false;
+  let isOpen = false;
   let isMinimized = false;
-  let inputVal    = "";
-  let history     = [];
-  let isLoading   = false;
-  let config      = null;
-  let shadow      = null; // set once in init()
+  let inputVal = "";
+  let history = [];
+  let isLoading = false;
+  let config = null;
+  let shadow = null; // set once in init()
 
   const HISTORY_KEY = `zoabit_history_${chatbotId}`;
-  try { const s = localStorage.getItem(HISTORY_KEY); if (s) history = JSON.parse(s); } catch(e){}
+  try { const s = localStorage.getItem(HISTORY_KEY); if (s) history = JSON.parse(s); } catch (e) { }
 
   // ── Config helpers ────────────────────────────────────────────────────────
   function c(path, fallback) {
     if (!config) return fallback;
-    return path.split('.').reduce((o,k) => o?.[k], config) ?? fallback;
+    return path.split('.').reduce((o, k) => o?.[k], config) ?? fallback;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -43,9 +43,9 @@
   }
 
   function buildMessagesHTML() {
-    const greeting  = c('greeting', 'Hello! How can I help you today?');
-    const faqs      = c('faq', []);
-    const replyType  = c('style.replyStyle.replyType',  'bubble');
+    const greeting = c('greeting', 'Hello! How can I help you today?');
+    const faqs = c('faq', []);
+    const replyType = c('style.replyStyle.replyType', 'bubble');
     const senderType = c('style.senderStyle.senderType', 'bubble');
     let html = '';
 
@@ -86,13 +86,13 @@
 
   // ── SVG Icons ─────────────────────────────────────────────────────────────
   const icons = {
-    msg:  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>',
-    bot:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>',
+    msg: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>',
+    bot: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>',
     user: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-    trash:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
-    min:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>',
-    max:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>',
-    x:    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    trash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+    min: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>',
+    max: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>',
+    x: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     send: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>',
     arrL: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
     arrR: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
@@ -100,19 +100,24 @@
 
   // ── CSS ───────────────────────────────────────────────────────────────────
   function buildCSS() {
-    const primary    = c('style.brandColor.primary',   '#158effff');
-    const secondary  = c('style.brandColor.secondary', '#003ba8ff');
-    const accent     = c('style.brandColor.accent',    '#53d7ffff');
-    const bgColor    = c('style.bgColor',              '#ffffff');
-    const textColor  = c('style.textColor',            '#000000');
-    const replyBg    = c('style.replyStyle.bgColor',   'transparent');
-    const replyClr   = c('style.replyStyle.textColor', '#1e1e1e');
-    const senderBg   = c('style.senderStyle.bgColor',  '#158effff');
-    const senderClr  = c('style.senderStyle.textColor', '#ffffff');
-    const isLeft     = c('position', 'bottom-right') === 'bottom-left';
-    const side       = isLeft ? 'left' : 'right';
-    const winRadius  = c('style.corner', 'rounded') === 'square' ? '0px' : '20px';
-    const avatarRad  = c('style.icon', 'rounded') === 'square' ? '4px' : '50%';
+    const primary = c('style.brandColor.primary', '#158effff');
+    const secondary = c('style.brandColor.secondary', '#003ba8ff');
+    const accent = c('style.brandColor.accent', '#53d7ffff');
+    const bgColor = c('style.bgColor', '#ffffff');
+    const textColor = c('style.textColor', '#000000');
+    const replyBg = c('style.replyStyle.bgColor', 'transparent');
+    const replyClr = c('style.replyStyle.textColor', '#1e1e1e');
+    const senderBg = c('style.senderStyle.bgColor', '#158effff');
+    const senderClr = c('style.senderStyle.textColor', '#ffffff');
+
+    const getBase = color => (color && color.startsWith('#') && color.length > 7) ? color.substring(0, 7) : color;
+    const pBase = getBase(primary);
+    const sbBase = getBase(senderBg);
+
+    const isLeft = c('position', 'bottom-right') === 'bottom-left';
+    const side = isLeft ? 'left' : 'right';
+    const winRadius = c('style.corner', 'rounded') === 'square' ? '0px' : '20px';
+    const avatarRad = c('style.icon', 'rounded') === 'square' ? '4px' : '50%';
     const chipRadius = c('style.corner', 'rounded') === 'square' ? '0px' : '20px';
 
     return `
@@ -124,12 +129,12 @@
         width: 56px; height: 56px;
         background: ${primary}; color: #fff;
         border-radius: ${avatarRad}; border: none;
-        box-shadow: 0 8px 30px ${primary}77;
+        // box-shadow: 0 8px 30px ${pBase}77;
         cursor: pointer; z-index: 2147483647;
         display: flex; align-items: center; justify-content: center;
         transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
       }
-      .widget-btn:hover { transform: scale(1.12); box-shadow: 0 12px 40px ${primary}99; }
+      .widget-btn:hover { transform: scale(1.12); }
 
       /* The window — NO animation here; animation handled by .window-enter class */
       .chat-window {
@@ -247,12 +252,12 @@
       .msg-row.user .bubble {
         background: ${senderBg}; color: ${senderClr};
         border-radius: 16px 2px 16px 16px;
-        box-shadow: 0 4px 12px ${senderBg}44;
+        box-shadow: 0 4px 12px ${sbBase}44;
       }
       .msg-row.bot .bubble {
-        background: ${replyBg === 'transparent' ? primary + '11' : replyBg};
+        background: ${replyBg === 'transparent' ? pBase + '11' : replyBg};
         color: ${replyClr};
-        border: 1px solid ${primary}18;
+        border: 1px solid ${pBase}18;
         border-radius: 2px 16px 16px 16px;
       }
       .bubble a { color: ${accent}; }
@@ -286,7 +291,7 @@
         font-size: 13.5px; outline: none; background: rgba(0,0,0,0.03);
         color: ${textColor}; transition: border-color 0.2s, box-shadow 0.2s;
       }
-      .chat-input:focus { border-color: ${primary}; box-shadow: 0 0 0 3px ${primary}22; }
+      .chat-input:focus { border-color: ${primary}; box-shadow: 0 0 0 3px ${pBase}22; }
       .send-btn {
         position: absolute; right: 8px; width: 32px; height: 32px;
         background: ${primary}; color: #fff; border: none; border-radius: 9px;
@@ -300,9 +305,9 @@
   }
 
   // ── DOM element references (set when window is built) ────────────────────
-  let elBody   = null;
-  let elInput  = null;
-  let elSend   = null;
+  let elBody = null;
+  let elInput = null;
+  let elSend = null;
   let elWindow = null;
 
   // ── Build the full chat window (only called once on open) ────────────────
@@ -345,9 +350,9 @@
     elWindow = shadow.getElementById('sb-win');
     elWindow.addEventListener('animationend', () => elWindow.classList.remove('window-enter'), { once: true });
 
-    elBody  = shadow.getElementById('sb-body');
+    elBody = shadow.getElementById('sb-body');
     elInput = shadow.getElementById('sb-input');
-    elSend  = shadow.getElementById('sb-send');
+    elSend = shadow.getElementById('sb-send');
 
     // Update minimize button icon
     updateMinBtn();
@@ -355,16 +360,16 @@
     // ── Events — attached once, never re-attached ─────────────────────────
 
     // 1. Stop ALL clicks/pointer inside the window from reaching the host page
-    elWindow.addEventListener('click',        (e) => e.stopPropagation());
-    elWindow.addEventListener('pointerdown',  (e) => e.stopPropagation());
-    elWindow.addEventListener('mousedown',    (e) => e.stopPropagation());
-    elWindow.addEventListener('touchstart',   (e) => e.stopPropagation(), { passive: true });
+    elWindow.addEventListener('click', (e) => e.stopPropagation());
+    elWindow.addEventListener('pointerdown', (e) => e.stopPropagation());
+    elWindow.addEventListener('mousedown', (e) => e.stopPropagation());
+    elWindow.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
 
     // 2. Scroll containment — prevent host page from scrolling when
     //    the chat body hits its top or bottom boundary
     elBody.addEventListener('wheel', (e) => {
       const { scrollTop, scrollHeight, clientHeight } = elBody;
-      const atTop    = scrollTop === 0 && e.deltaY < 0;
+      const atTop = scrollTop === 0 && e.deltaY < 0;
       const atBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0;
       if (atTop || atBottom) e.preventDefault();
       e.stopPropagation();
@@ -434,7 +439,7 @@
   function toggleChat() {
     isOpen = !isOpen;
     if (!elWindow) buildWindow(shadow.getElementById('sb-app-root'));
-    
+
     if (isOpen) {
       elWindow.style.display = 'flex';
       elWindow.classList.add('window-enter');
@@ -444,7 +449,7 @@
     } else {
       elWindow.style.display = 'none';
     }
-    
+
     // Update main toggle button icon and mobile visibility
     const openBtn = shadow.getElementById('sb-open');
     if (openBtn) {
@@ -485,19 +490,21 @@
     }
 
     isLoading = true;
-    if (elSend)  elSend.disabled = true;
+    if (elSend) elSend.disabled = true;
     refreshMessages();
 
     try {
-      const res  = await fetch(`${backendOrigin}/api/chatbot/ask/${chatbotId}`, {
+      const res = await fetch(`${backendOrigin}/api/chatbot/ask/${chatbotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: text, history: history.slice(0, -1) })
       });
       const json = await res.json();
-      history.push({ role: 'assistant', content: json.success && json.data
-        ? json.data
-        : (json.message || "Sorry, I couldn't respond. Please try again.") });
+      history.push({
+        role: 'assistant', content: json.success && json.data
+          ? json.data
+          : (json.message || "Sorry, I couldn't respond. Please try again.")
+      });
     } catch {
       history.push({ role: 'assistant', content: "Connection error. Please try again later." });
     } finally {
@@ -541,7 +548,7 @@
     fetch(`${backendOrigin}/api/chatbot/config/${chatbotId}`)
       .then(r => r.json())
       .then(json => { if (json.success) config = json.data; })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         // Early domain verification
         const v = config.verifiedDomains || [];
@@ -563,13 +570,13 @@
         const faqContainer = shadow.getElementById('sb-faqs');
         const btnL = shadow.getElementById('sb-faq-left');
         const btnR = shadow.getElementById('sb-faq-right');
-        
+
         if (faqWrap && faqContainer && validFaqs.length > 0) {
           faqWrap.style.display = 'flex';
-          faqContainer.innerHTML = validFaqs.map(q => 
-            `<button type="button" class="faq-chip" data-q="${q.question.replace(/"/g,'&quot;')}">${q.question}</button>`
+          faqContainer.innerHTML = validFaqs.map(q =>
+            `<button type="button" class="faq-chip" data-q="${q.question.replace(/"/g, '&quot;')}">${q.question}</button>`
           ).join('');
-          
+
           faqContainer.querySelectorAll('.faq-chip').forEach(btn => {
             btn.onclick = (e) => {
               e.preventDefault();
@@ -583,9 +590,9 @@
             btnL.classList.toggle('hidden', faqContainer.scrollLeft <= 5);
             btnR.classList.toggle('hidden', faqContainer.scrollLeft >= faqContainer.scrollWidth - faqContainer.clientWidth - 5);
           };
-          
+
           faqContainer.addEventListener('scroll', checkScroll);
-          
+
           // Trigger checkScroll when container becomes visible/resizes
           if (window.ResizeObserver) {
             new ResizeObserver(() => checkScroll()).observe(faqContainer);
