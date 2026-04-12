@@ -30,13 +30,14 @@ function getChatModel(chatBot) {
         }
     }
     
-    if (!apiKey) {
+    if (!apiKey && !chatBot.isBYOK) {
         // Fallback to system env keys based on provider
         apiKey = provider.includes('google') ? process.env.GOOGLE_GENERATIVE_AI_API_KEY :
                  provider.includes('openai') ? process.env.OPENAI_API_KEY :
                  provider.includes('anthropic') ? process.env.ANTHROPIC_API_KEY :
                  process.env.MISTRAL_API_KEY;
     }
+
 
     if (!apiKey) {
         throw new Error(`No API Key configured for provider: ${provider}`);

@@ -211,6 +211,7 @@ async function updateChatBotController(req, res) {
             } else delete validated.api;
         }
 
+
         const chatbot = await chatBotModel.findOneAndUpdate(
             { _id: req.params.chatbotId, userId: req.user.userId },
             validated,
