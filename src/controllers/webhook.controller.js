@@ -40,8 +40,20 @@ const handleSubscriptionEvent = async (event, payload) => {
 };
 
 const handlePaymentCaptured = async (payload) => {
+    const type = payload?.notes?.type;
+    const userId = payload?.notes?.userId;
+
+    if (type === 'chat_addon' && userId) {
+        const messagesToAdd = parseInt(payload.notes.messagesToAdd);
+        await userModel.findByIdAndUpdate(userId, {
+            $inc: { extraMessages: messagesToAdd }
+        });
+        console.log(`[Webhook] 💬 Added ${messagesToAdd} messages to User: ${userId}`);
+        return;
+    }
+
     const chatbotId = payload?.notes?.chatbotId;
-    if (payload?.notes?.type !== 'byok_activation' || !chatbotId) return;
+    if (type !== 'byok_activation' || !chatbotId) return;
 
     let updated = await chatBotModel.findOneAndUpdate(
         { _id: chatbotId },
@@ -73,19 +85,40 @@ const handleWebhook = async (req, res) => {
             .update(req.body)
             .digest('hex');
 
-        if (expectedSignature !== signature) return res.status(400).json({ error: 'Invalid signature' });
+        if (expectedSignature !== signature) {
+            console.error("[Webhook] ❌ Signature Mismatch. Check RAZORPAY_WEBHOOK_SECRET.");
+            return res.status(400).json({ error: 'Invalid signature' });
+        }
 
         const event = JSON.parse(req.body.toString());
-        const payload = event.payload?.subscription?.entity || event.payload?.payment?.entity;
+        const paymentEntity = event.payload?.payment?.entity;
+        const orderEntity = event.payload?.order?.entity;
+        const subEntity = event.payload?.subscription?.entity;
 
-        if (!payload) return res.json({ skip: true });
+        const payload = subEntity || paymentEntity || orderEntity;
+        
+        // Merge notes from order if missing in payment
+        if (paymentEntity && orderEntity && (!paymentEntity.notes || Object.keys(paymentEntity.notes).length === 0)) {
+            paymentEntity.notes = orderEntity.notes;
+        }
+
+        if (!payload) {
+            console.log(`[Webhook] ⚠️ No payload found for event: ${event.event}`);
+            return res.json({ skip: true });
+        }
+
+        console.log(`[Webhook] 🔔 Event Received: ${event.event}`, {
+            id: payload.id,
+            type: payload.notes?.type,
+            userId: payload.notes?.userId
+        });
 
         switch (event.event) {
             case 'subscription.activated':
             case 'subscription.charged':
             case 'subscription.cancelled':
             case 'subscription.expired':
-                await handleSubscriptionEvent(event.event, payload);
+                await handleSubscriptionEvent(event.event, subEntity || payload);
                 break;
             case 'subscription.halted':
                 await Subscription.findOneAndUpdate(
@@ -94,7 +127,7 @@ const handleWebhook = async (req, res) => {
                 );
                 break;
             case 'payment.captured':
-                await handlePaymentCaptured(payload);
+                await handlePaymentCaptured(paymentEntity || payload);
                 break;
         }
 

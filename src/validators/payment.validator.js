@@ -15,8 +15,14 @@ const cancelSubscriptionSchema = z.object({
     subscriptionId: z.string().min(1, "Subscription ID is required")
 });
 
+const createChatAddonOrderSchema = z.object({
+    amount: z.number().min(99, "Minimum order amount is ₹99"),
+    couponCode: z.string().optional()
+});
+
 module.exports = {
     createBYOKOrderSchema,
     createSubscriptionSchema,
-    cancelSubscriptionSchema
+    cancelSubscriptionSchema,
+    createChatAddonOrderSchema
 };

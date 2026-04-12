@@ -89,7 +89,11 @@ async function askChatBotController(req, res) {
 
         // Update Analytics
         if(!chatBot.isBYOK){
-            chatBot.userId.messageCount += 1;
+            if (chatBot.userId.messageCount >= chatBot.userId.messageLimit) {
+                chatBot.userId.extraMessages = Math.max(0, chatBot.userId.extraMessages - 1);
+            } else {
+                chatBot.userId.messageCount += 1;
+            }
             await chatBot.userId.save();
         }
 

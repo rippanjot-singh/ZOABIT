@@ -12,4 +12,4 @@ async function createCoupon(code, offerId, discountType = 'percentage', discount
     console.log(coupon);
 }
 
-createCoupon('ADMINFOREVER', 'offer_ScHvDPrQsG3aND', 'percentage', 99);
+createCoupon('ADMINEXTRAMESSAGES', 'offer_ScTYuXbqLnQd1N', 'percentage', 99);

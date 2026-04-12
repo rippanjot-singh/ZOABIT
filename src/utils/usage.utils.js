@@ -28,7 +28,7 @@ const checkAndResetQuota = async (user) => {
  * @returns {boolean} - True if limit is reached.
  */
 const isQuotaExceeded = (user) => {
-    return user.messageCount >= user.messageLimit;
+    return user.messageCount >= user.messageLimit && (user.extraMessages || 0) <= 0;
 };
 
 module.exports = {

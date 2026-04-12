@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    extraMessages: {
+        type: Number,
+        default: 0
+    },
     lastResetDate: {
         type: Date,
         default: Date.now
