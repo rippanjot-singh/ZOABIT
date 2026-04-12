@@ -7,7 +7,8 @@ const createBYOKOrderSchema = z.object({
 const createSubscriptionSchema = z.object({
     planId: z.string().min(1, "Plan ID is required"),
     userId: z.string().min(1, "User ID is required"),
-    planName: z.enum(['free', 'starter', 'pro', 'enterprise'])
+    planName: z.enum(['free', 'starter', 'pro', 'enterprise']),
+    offerId: z.string().optional()
 });
 
 const cancelSubscriptionSchema = z.object({

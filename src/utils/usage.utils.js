@@ -4,6 +4,11 @@
  * @returns {Promise<boolean>} - True if reset happened.
  */
 const checkAndResetQuota = async (user) => {
+    // Free plan has a total lifetime limit of 100 messages, no auto-reset
+    if (user.subscription === 'free') {
+        return false;
+    }
+
     const now = new Date();
     const lastReset = new Date(user.lastResetDate || user.createdAt || now);
     const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;

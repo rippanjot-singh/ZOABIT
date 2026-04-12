@@ -21,12 +21,21 @@ const handleSubscriptionEvent = async (event, payload) => {
 
     if (userId && PLANS[planSlug]) {
         const planDetails = PLANS[planSlug];
-        await userModel.findByIdAndUpdate(userId, {
+        const updateFields = {
             subscription: planSlug,
             subscriptionId: payload.id,
             chatbotLimit: planDetails.chatbotLimit,
             messageLimit: planDetails.messageLimit
-        });
+        };
+
+        // Reset message count on billing events (activation or renewal)
+        if (event === 'subscription.activated' || event === 'subscription.charged') {
+            updateFields.messageCount = 0;
+            updateFields.lastResetDate = new Date();
+            console.log(`[Webhook] 🔄 Reseting Quota for User: ${userId} (${planSlug})`);
+        }
+
+        await userModel.findByIdAndUpdate(userId, updateFields);
     }
 };
 

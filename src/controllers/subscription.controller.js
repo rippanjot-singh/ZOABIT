@@ -7,14 +7,20 @@ const { createSubscriptionSchema, cancelSubscriptionSchema } = require('../valid
 const createSubscription = async (req, res) => {
     try {
         const validated = createSubscriptionSchema.parse(req.body);
-        const { planId, userId, planName } = validated;
-
-        const subscription = await razorpay.subscriptions.create({
+        const { planId, userId, planName, offerId } = validated;
+        
+        const subData = {
             plan_id: planId,
             customer_notify: 1,
             total_count: 12,
             notes: { userId, planName }
-        });
+        };
+
+        if (offerId) {
+            subData.offer_id = offerId;
+        }
+
+        const subscription = await razorpay.subscriptions.create(subData);
 
         await Subscription.create({
             userId,

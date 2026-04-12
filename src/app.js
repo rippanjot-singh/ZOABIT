@@ -15,6 +15,7 @@ const userRoutes = require('./routes/user.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const inquiryRoutes = require('./routes/inquiry.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const couponRoutes = require('./routes/coupon.routes');
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -44,6 +45,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/inquiry', inquiryRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/coupons', couponRoutes);
 
 app.get("*name", (req, res) => {
     res.sendFile(path.join(__dirname, "..", "public", "index.html"));
