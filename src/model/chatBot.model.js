@@ -102,6 +102,10 @@ const chatBotSchema = new mongoose.Schema({
         enum: ['bottom-right', 'bottom-left'],
         default: 'bottom-right'
     },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
     isBYOK: {
         type: Boolean,
         default: false

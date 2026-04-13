@@ -36,6 +36,14 @@ async function askChatBotController(req, res) {
         }
 
         // Feature Guards
+        if (chatBot.isActive === false) {
+            return res.status(403).json({
+                success: false,
+                message: "This chatbot is currently inactive.",
+                data: { chatbotId }
+            });
+        }
+
         if (!isBYOKActive(chatBot)) {
             return res.status(403).json({
                 success: false,
@@ -243,9 +251,23 @@ async function deleteChatBotController(req, res) {
 
 async function getWidgetConfigController(req, res) {
     try {
-        const chatbot = await chatBotModel.findById(req.params.chatbotId).select("name style welcomeMessage prompt model integrations position faq greeting");
+        const chatbot = await chatBotModel.findById(req.params.chatbotId).select("name style welcomeMessage prompt model integrations position faq greeting verifiedDomains isActive");
         if (!chatbot) return res.status(404).json({ success: false, message: "Not found" });
         res.status(200).json({ success: true, data: chatbot });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+async function toggleChatBotStatusController(req, res) {
+    try {
+        const chatbot = await chatBotModel.findOne({ _id: req.params.chatbotId, userId: req.user.userId });
+        if (!chatbot) return res.status(404).json({ success: false, message: "Not found" });
+
+        chatbot.isActive = !chatbot.isActive;
+        await chatbot.save();
+
+        res.status(200).json({ success: true, data: { isActive: chatbot.isActive } });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -258,5 +280,6 @@ module.exports = {
     getChatBotController,
     deleteChatBotController,
     updateChatBotController,
-    getWidgetConfigController
+    getWidgetConfigController,
+    toggleChatBotStatusController
 };

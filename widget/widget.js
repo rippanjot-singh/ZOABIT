@@ -169,7 +169,7 @@
 
       .chat-header {
         padding: 14px 16px; flex-shrink: 0;
-        background: linear-gradient(135deg, ${primary}, ${secondary});
+        background: ${primary};
         color: #fff;
         display: flex; align-items: center; justify-content: space-between;
       }
@@ -533,11 +533,12 @@
     appRoot.id = "sb-app-root";
     shadow.appendChild(appRoot);
 
-    // Show persistent toggle button
+    // Toggle button — hidden until config confirms the bot exists & is valid
     const btn = document.createElement("button");
     btn.className = "widget-btn";
     btn.id = "sb-open";
     btn.innerHTML = icons.msg;
+    btn.style.display = 'none'; // stay hidden until validated
     shadow.appendChild(btn);
 
     btn.addEventListener('click', (e) => {
@@ -547,16 +548,31 @@
 
     // Fetch config (apply styles after, re-render if window already open)
     fetch(`${backendOrigin}/api/chatbot/config/${chatbotId}`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(json => { if (json.success) config = json.data; })
-      .catch(() => { })
+      .catch(() => { config = null; })
       .finally(() => {
+        // Config failed (wrong ID, server error, network issue) — silently remove
+        if (!config) {
+          container.remove();
+          return;
+        }
+
+        // Check if chatbot is active
+        if (config.isActive === false) {
+          container.remove();
+          return;
+        }
+
         // Early domain verification
         const v = config.verifiedDomains || [];
         const host = window.location.hostname;
         if (v.length > 0 && !v.includes(host) && host !== 'localhost' && host !== '127.0.0.1') {
           console.warn('zoabit: Domain not authorized for this widget.');
-          container.style.display = 'none';
+          container.remove();
           return;
         }
 
@@ -605,6 +621,9 @@
           btnR.onclick = (e) => { e.preventDefault(); faqContainer.scrollBy({ left: 150, behavior: 'smooth' }); };
 
         }
+
+        // All checks passed — reveal the widget button
+        btn.style.display = '';
 
         if (isOpen) toggleChat();
       });
