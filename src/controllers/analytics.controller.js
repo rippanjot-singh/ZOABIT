@@ -1,11 +1,15 @@
 const chatBotModel = require("../model/chatBot.model");
 const userModel = require("../model/user.model");
+const inquiryModel = require("../model/inquiry.model");
 
 const getGlobalAnalytics = async (req, res) => {
     try {
         const userId = req.user.userId;
         const bots = await chatBotModel.find({ userId });
         
+        // Count total inquiries for this user
+        const totalInquiries = await inquiryModel.countDocuments({ userId });
+
         // Aggregate totals
         let totalMessages = 0;
         let botStats = [];
@@ -42,7 +46,8 @@ const getGlobalAnalytics = async (req, res) => {
             success: true,
             data: {
                 totalMessages,
-                totalBots: bots.length,
+                totalChatbots: bots.length,
+                totalInquiries,
                 botStats,
                 timeSeries,
                 managedBots: managed.length

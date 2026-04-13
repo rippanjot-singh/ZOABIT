@@ -16,7 +16,7 @@ async function askChatBotController(req, res) {
     try {
         const validated = askChatBotSchema.parse(req.body);
         const { chatbotId } = req.params;
-        const { question, history = [] } = validated;
+        const { question, history = [], isPlayground = false } = validated;
 
         const chatBot = await chatBotModel.findById(chatbotId).populate("userId");
         if (!chatBot) return res.status(404).json({ success: false, message: 'Chatbot not found' });
@@ -65,10 +65,16 @@ async function askChatBotController(req, res) {
 
         const messages = [
             new SystemMessage(
-                `${chatBot.prompt || 'You are a helpful AI assistant.'}\n` +
+                `${chatBot.prompt || 'You are a professional assistant.'}\n\n` +
                 `Identity: Your name is "${chatBot.name}".\n` +
                 `Context: chatbotId="${chatbotId}", userId="${chatBot.userId._id}".\n` +
-                integrationContext
+                `${integrationContext}\n\n` +
+                `CRITICAL OPERATING RULES (STRICT ADHERENCE REQUIRED):\n` +
+                `1. LEAD GENERATION: Your goal is to capture leads. When interest is shown, ask for contact details so a human can follow up.\n` +
+                `2. ZERO HALLUCINATION POLICY: You are NOT allowed to provide pricing plans, specific features, or company-specific guarantees unless they are explicitly listed in the 'Context' provided above.\n` +
+                `3. UNCERTAINTY = ASK & HANDOFF: If a user asks for information not in the text above, say you don't have it and offer to connect them with the team.\n` +
+                `4. NO FAKE DATA: NEVER invent names, phone numbers, or emails (e.g., do NOT use "John Doe" or "555-0199"). You MUST only use information explicitly provided by the user in this chat.\n` +
+                `5. TOOL PROTOCOL: Only use 'createInquiry' AFTER the user has actually provided their real name and contact info. If they haven't shared it yet, ASK them for it first. Do not use placeholders.`
             ),
             ...history.map(msg => msg.role === "user" ? new HumanMessage(msg.content) : new AIMessage(msg.content)),
             new HumanMessage(question)
@@ -87,24 +93,26 @@ async function askChatBotController(req, res) {
             response = await chatModel.invoke([...messages, response, ...toolResults]);
         }
 
-        // Update Analytics
-        if(!chatBot.isBYOK){
-            if (chatBot.userId.messageCount >= chatBot.userId.messageLimit) {
-                chatBot.userId.extraMessages = Math.max(0, chatBot.userId.extraMessages - 1);
-            } else {
-                chatBot.userId.messageCount += 1;
+        // Update Analytics (Skip if Playground request)
+        if (!isPlayground) {
+            if (!chatBot.isBYOK) {
+                if (chatBot.userId.messageCount >= chatBot.userId.messageLimit) {
+                    chatBot.userId.extraMessages = Math.max(0, chatBot.userId.extraMessages - 1);
+                } else {
+                    chatBot.userId.messageCount += 1;
+                }
+                await chatBot.userId.save();
             }
-            await chatBot.userId.save();
-        }
 
-        const today = new Date().toISOString().split('T')[0];
-        chatBot.totalMessages = (chatBot.totalMessages || 0) + 1;
-        if (!chatBot.analytics) chatBot.analytics = [];
-        const dayEntry = chatBot.analytics.find(a => a.date === today);
-        if (dayEntry) dayEntry.messages += 1;
-        else chatBot.analytics.push({ date: today, messages: 1 });
-        if (chatBot.analytics.length > 30) chatBot.analytics.shift();
-        await chatBot.save();
+            const today = new Date().toISOString().split('T')[0];
+            chatBot.totalMessages = (chatBot.totalMessages || 0) + 1;
+            if (!chatBot.analytics) chatBot.analytics = [];
+            const dayEntry = chatBot.analytics.find(a => a.date === today);
+            if (dayEntry) dayEntry.messages += 1;
+            else chatBot.analytics.push({ date: today, messages: 1 });
+            if (chatBot.analytics.length > 30) chatBot.analytics.shift();
+            await chatBot.save();
+        }
 
         res.status(200).json({ success: true, data: response.content, messageCount: chatBot.userId.messageCount });
     } catch (error) {

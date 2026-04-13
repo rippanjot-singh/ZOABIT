@@ -51,7 +51,8 @@ const askChatBotSchema = z.object({
     history: z.array(z.object({
         role: z.enum(['user', 'assistant', 'system']),
         content: z.string()
-    })).optional()
+    })).optional(),
+    isPlayground: z.boolean().optional()
 });
 
 module.exports = {

@@ -3,6 +3,8 @@ const { z } = require("zod");
 const inquiryModel = require("../model/inquiry.model");
 const { readGoogleSheet, readGoogleDoc, getValidTokens } = require("./google.service");
 const userModel = require("../model/user.model");
+const sendMail = require("./email.service");
+const { inquiryConfirmationTemplate, newLeadNotificationTemplate } = require("../utils/emails.utils");
 
 /**
  * Lead Generation Tool: Saves customer info to DB.
@@ -12,6 +14,13 @@ const createInquiryTool = tool(
     async ({ name, phone, email, inquiry, chatbotId, userId }) => {
         try {
             await inquiryModel.create({ name, phone, email, inquiry, chatbotId, userId });
+            
+            const owner = await userModel.findById(userId);
+            if (owner) {
+                const ownerHtml = newLeadNotificationTemplate(owner.name, name, email || "N/A", phone, inquiry);
+                sendMail(owner.email, "New Lead Captured!", "", ownerHtml);
+            }
+
             return `Inquiry recorded successfully for ${name}. An agent will be in touch.`;
         } catch (error) {
             console.error("[Inquiry Tool Error]:", error);

@@ -115,10 +115,6 @@ const chatBotSchema = new mongoose.Schema({
         enum: ['paid', 'not-paid', 'pending'],
         default: 'not-paid'
     },
-    scrappedData: {
-        type: String,
-        default: ''
-    },
     verifiedDomains: {
         type: [String],
         default: [],

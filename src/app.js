@@ -16,6 +16,7 @@ const analyticsRoutes = require('./routes/analytics.routes');
 const inquiryRoutes = require('./routes/inquiry.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const couponRoutes = require('./routes/coupon.routes');
+const { apiLimiter } = require('./middlewares/rateLimit.middleware');
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -24,6 +25,9 @@ app.use(cors({
     },
     credentials: true,
 }));
+
+// Apply global rate limiting to all API requests
+app.use('/api', apiLimiter);
 
 // Route for webhooks FIRST (must pre-date express.json for raw body access)
 app.use('/api/webhook', webhookRoutes);
