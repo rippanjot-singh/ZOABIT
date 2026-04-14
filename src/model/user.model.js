@@ -50,13 +50,6 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    googleTokens: {
-        access_token: String,
-        refresh_token: String,
-        expiry_date: Number,
-        scope: String,
-        token_type: String
-    },
     notionTokens: {
         access_token: String,
         workspace_id: String,

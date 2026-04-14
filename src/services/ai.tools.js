@@ -1,7 +1,6 @@
 const { tool } = require("@langchain/core/tools");
 const { z } = require("zod");
 const inquiryModel = require("../model/inquiry.model");
-const { readGoogleSheet, readGoogleDoc, getValidTokens } = require("./google.service");
 const { readNotionPage, readNotionDatabase } = require("./notion.service");
 const userModel = require("../model/user.model");
 const sendMail = require("./email.service");
@@ -44,10 +43,8 @@ const createInquiryTool = tool(
 
 /**
  * Builds a dynamic data-reading tool for a specific file.
- * Each tool execution will fetch the freshest tokens to avoid expiration.
  */
 function buildIntegrationTool(integration, ownerId) {
-    const isSheet = integration.provider === 'google_sheets';
     const isNotion = integration.provider === 'notion';
     
     // Improved tool name: alphanumerics allowed, prefixed by provider
@@ -71,25 +68,7 @@ function buildIntegrationTool(integration, ownerId) {
                     return `Live content from Notion "${integration.name}":\n\n${result}`;
                 } 
                 
-                // Google specific flow (Spreadsheets/Docs)
-                const tokens = await getValidTokens(user);
-                if (isSheet) {
-                    const rows = await readGoogleSheet(tokens, integration.fileId);
-                    if (!rows || rows.length === 0) return `Resource "${integration.name}" exists but is empty.`;
-                    
-                    const headers = rows[0] || [];
-                    const dataRows = rows.slice(1);
-                    
-                    if (dataRows.length === 0) {
-                        return `Resource "${integration.name}" has headers (${headers.join(', ')}) but no data entries yet.`;
-                    }
-                    
-                    return `Live data from Google Sheet "${integration.name}":\n` + 
-                           dataRows.map(row => headers.map((h, i) => `${h}: ${row[i] || 'N/A'}`).join(' | ')).join('\n');
-                } else {
-                    const text = await readGoogleDoc(tokens, integration.fileId);
-                    return `Content from Google Doc "${integration.name}":\n\n${text}`;
-                }
+                return "Integration type not supported.";
             } catch (err) {
                 console.error(`[Integration Tool Error - ${integration.name}]:`, err.message);
                 return `Access Error: Unable to read "${integration.name}" at this time.`;
@@ -108,7 +87,9 @@ function buildIntegrationTool(integration, ownerId) {
  */
 async function buildIntegrationTools(integrations, userId) {
     if (!integrations || integrations.length === 0) return [];
-    return integrations.map(intg => buildIntegrationTool(intg, userId));
+    // Only process Notion integrations
+    const supportedIntegrations = integrations.filter(intg => intg.provider === 'notion');
+    return supportedIntegrations.map(intg => buildIntegrationTool(intg, userId));
 }
 
 module.exports = { createInquiryTool, buildIntegrationTools };
