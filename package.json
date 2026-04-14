@@ -21,6 +21,7 @@
     "@langchain/mistralai": "^1.0.7",
     "@langchain/openai": "^1.4.3",
     "@langchain/textsplitters": "^1.0.1",
+    "@notionhq/client": "^5.18.0",
     "@pinecone-database/pinecone": "^7.1.0",
     "@sparticuz/chromium": "^133.0.0",
     "axios": "^1.14.0",

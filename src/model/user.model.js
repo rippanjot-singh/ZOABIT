@@ -57,6 +57,14 @@ const userSchema = new mongoose.Schema({
         scope: String,
         token_type: String
     },
+    notionTokens: {
+        access_token: String,
+        workspace_id: String,
+        workspace_name: String,
+        workspace_icon: String,
+        bot_id: String,
+        owner: Object
+    },
     isOnboarded: {
         type: Boolean,
         default: false

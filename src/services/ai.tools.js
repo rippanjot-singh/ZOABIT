@@ -2,6 +2,7 @@ const { tool } = require("@langchain/core/tools");
 const { z } = require("zod");
 const inquiryModel = require("../model/inquiry.model");
 const { readGoogleSheet, readGoogleDoc, getValidTokens } = require("./google.service");
+const { readNotionPage, readNotionDatabase } = require("./notion.service");
 const userModel = require("../model/user.model");
 const sendMail = require("./email.service");
 const { inquiryConfirmationTemplate, newLeadNotificationTemplate } = require("../utils/emails.utils");
@@ -47,18 +48,31 @@ const createInquiryTool = tool(
  */
 function buildIntegrationTool(integration, ownerId) {
     const isSheet = integration.provider === 'google_sheets';
-    const toolName = `read_${integration.fileId.replace(/[^a-zA-Z]/g, '_').toLowerCase()}`;
+    const isNotion = integration.provider === 'notion';
+    
+    // Improved tool name: alphanumerics allowed, prefixed by provider
+    const cleanId = integration.fileId.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const toolName = `read_${integration.provider.split('_')[0]}_${cleanId}`.slice(0, 64);
 
     return tool(
         async () => {
             try {
-                // Fetch the latest user record to ensure we have fresh tokens
                 const user = await userModel.findById(ownerId);
                 if (!user) return "System Error: Chatbot owner not found.";
 
-                // Get valid (auto-refreshed) tokens
-                const tokens = await getValidTokens(user);
+                if (isNotion) {
+                    const notionToken = user?.notionTokens?.access_token || process.env.NOTION_API_KEY;
+                    if (!notionToken) return `Access Error: Notion not connected for "${integration.name}".`;
 
+                    const result = integration.type === 'database' 
+                        ? await readNotionDatabase(notionToken, integration.fileId)
+                        : await readNotionPage(notionToken, integration.fileId);
+                    
+                    return `Live content from Notion "${integration.name}":\n\n${result}`;
+                } 
+                
+                // Google specific flow (Spreadsheets/Docs)
+                const tokens = await getValidTokens(user);
                 if (isSheet) {
                     const rows = await readGoogleSheet(tokens, integration.fileId);
                     if (!rows || rows.length === 0) return `Resource "${integration.name}" exists but is empty.`;
@@ -70,21 +84,20 @@ function buildIntegrationTool(integration, ownerId) {
                         return `Resource "${integration.name}" has headers (${headers.join(', ')}) but no data entries yet.`;
                     }
                     
-                    // Format into a readable string for the LLM
-                    return `Live data from "${integration.name}":\n` + 
+                    return `Live data from Google Sheet "${integration.name}":\n` + 
                            dataRows.map(row => headers.map((h, i) => `${h}: ${row[i] || 'N/A'}`).join(' | ')).join('\n');
                 } else {
                     const text = await readGoogleDoc(tokens, integration.fileId);
-                    return `Content from file "${integration.name}":\n\n${text}`;
+                    return `Content from Google Doc "${integration.name}":\n\n${text}`;
                 }
             } catch (err) {
                 console.error(`[Integration Tool Error - ${integration.name}]:`, err.message);
-                return `Access Error: Unable to read "${integration.name}" at this time. User might need to re-authenticate.`;
+                return `Access Error: Unable to read "${integration.name}" at this time.`;
             }
         },
         {
             name: toolName,
-            description: `Reads live data from "${integration.name}". Use this for: ${integration.description}`,
+            description: `MANDATORY: Call this tool if the user asks about: ${integration.description}. Resource name: "${integration.name}".`,
             schema: z.object({})
         }
     );
