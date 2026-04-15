@@ -88,4 +88,44 @@ function buildModelWithTools(chatBot, integrationTools = []) {
     return model.bindTools([createInquiryTool, ...integrationTools]);
 }
 
-module.exports = { getChatModel, buildModelWithTools };
+const { JsonOutputParser } = require("@langchain/core/output_parsers");
+const { PromptTemplate } = require("@langchain/core/prompts");
+
+/**
+ * AI-Powered Analysis for better analytics
+ */
+async function analyzeSentimentAndTopic(chatBot, question, response) {
+    try {
+        const { model } = getChatModel(chatBot);
+        
+        const template = `
+        Analyze the following conversation segment and provide a JSON response.
+        
+        User Question: "{question}"
+        AI Response: "{response}"
+        
+        Required JSON format:
+        {{
+            "sentiment": "positive" | "negative" | "neutral",
+            "topic": "string (short category)",
+            "isResolved": boolean
+        }}
+        
+        Rules:
+        - Sentiment: "negative" if user expresses frustration, confusion, dissatisfaction, or complaints. "positive" if happy/thankful. Otherwise "neutral".
+        - Topic: 1-2 words (e.g. "Pricing", "Support", "Integration", "Feature Inquiry").
+        - isResolved: false if AI says "I don't know", can't help, or user is still frustrated.
+        `;
+
+        const prompt = PromptTemplate.fromTemplate(template);
+        const chain = prompt.pipe(model).pipe(new JsonOutputParser());
+        
+        const result = await chain.invoke({ question, response });
+        return result || { sentiment: 'neutral', topic: 'General inquiry', isResolved: true };
+    } catch (err) {
+        // Fallback for analysis errors to ensure chat doesn't break
+        return { sentiment: 'neutral', topic: 'General inquiry', isResolved: true };
+    }
+}
+
+module.exports = { getChatModel, buildModelWithTools, analyzeSentimentAndTopic };

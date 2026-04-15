@@ -1,6 +1,7 @@
 const chatBotModel = require("../model/chatBot.model");
 const userModel = require("../model/user.model");
 const inquiryModel = require("../model/inquiry.model");
+const interactionModel = require("../model/interaction.model");
 
 const getGlobalAnalytics = async (req, res) => {
     try {
@@ -9,6 +10,26 @@ const getGlobalAnalytics = async (req, res) => {
         
         // Count total inquiries for this user
         const totalInquiries = await inquiryModel.countDocuments({ userId });
+
+        // Get all interactions for advanced metrics
+        const interactions = await interactionModel.find({ userId });
+        
+        // Advanced Metrics Aggregation
+        let totalResponseTime = 0;
+        let resolvedCount = 0;
+        let sentimentStats = { positive: 0, neutral: 0, negative: 0 };
+        let topicStats = {};
+
+        interactions.forEach(inter => {
+            totalResponseTime += (inter.responseTime || 0);
+            if (inter.isResolved) resolvedCount++;
+            if (sentimentStats[inter.sentiment] !== undefined) sentimentStats[inter.sentiment]++;
+            
+            topicStats[inter.topic] = (topicStats[inter.topic] || 0) + 1;
+        });
+
+        const avgResponseTime = interactions.length > 0 ? (totalResponseTime / interactions.length / 1000).toFixed(2) : 0;
+        const resolutionRate = interactions.length > 0 ? ((resolvedCount / interactions.length) * 100).toFixed(1) : 0;
 
         // Aggregate totals
         let totalMessages = 0;
@@ -50,7 +71,13 @@ const getGlobalAnalytics = async (req, res) => {
                 totalInquiries,
                 botStats,
                 timeSeries,
-                managedBots: managed.length
+                managedBots: managed.length,
+                // New Advanced Data
+                avgResponseTime,
+                resolutionRate,
+                sentimentStats,
+                topicStats,
+                totalInteractions: interactions.length
             }
         });
     } catch (error) {

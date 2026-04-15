@@ -39,12 +39,13 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use("/widget", express.static(path.join(__dirname, "..", "widget")));
 
+app.use('/api/google', googleRoutes);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/plans', plansRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/chatbot', chatBotRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/google', googleRoutes);
 app.use('/api/notion', notionRoutes);
 app.use('/api/onboard', onBoardRoutes);
 app.use('/api/user', userRoutes);

@@ -8,11 +8,14 @@ const { checkAndResetQuota, isQuotaExceeded } = require("../utils/usage.utils");
 const { isDomainVerified, isBYOKActive } = require("../utils/bot.utils");
 const { chatBotSchema, updateChatBotSchema, askChatBotSchema } = require("../validators/chatBot.validator");
 
+const interactionModel = require("../model/interaction.model");
+
 const staticTools = {
     createInquiry: createInquiryTool
 };
 
 async function askChatBotController(req, res) {
+    const startTime = Date.now();
     try {
         const validated = askChatBotSchema.parse(req.body);
         const { chatbotId } = req.params;
@@ -101,28 +104,52 @@ async function askChatBotController(req, res) {
             response = await chatModel.invoke([...messages, response, ...toolResults]);
         }
 
-        // Update Analytics (Skip if Playground request)
-        if (!isPlayground) {
-            if (!chatBot.isBYOK) {
-                if (chatBot.userId.messageCount >= chatBot.userId.messageLimit) {
-                    chatBot.userId.extraMessages = Math.max(0, chatBot.userId.extraMessages - 1);
-                } else {
-                    chatBot.userId.messageCount += 1;
-                }
-                await chatBot.userId.save();
-            }
+        const responseTime = Date.now() - startTime;
 
+        // 1. ADVANCED ANALYTICS: Interaction Logging (Only for Widget/non-playground)
+        if (!isPlayground) {
+            const { analyzeSentimentAndTopic } = require("../services/ai.service");
+            const analysis = await analyzeSentimentAndTopic(chatBot, question, response.content);
+
+            await interactionModel.create({
+                chatbotId,
+                userId: chatBot.userId._id,
+                question,
+                response: response.content,
+                sentiment: analysis.sentiment || 'neutral',
+                topic: analysis.topic || 'General inquiry',
+                responseTime,
+                isResolved: analysis.isResolved ?? true
+            });
+        }
+
+        // 2. USAGE BILLING & DAILY ANALYTICS: Only for Managed Bots (not BYOK)
+        // This now runs for BOTH Playground and Widget if not BYOK
+        if (!chatBot.isBYOK) {
+            // Update User Global Count (for plan limits)
+            if (chatBot.userId.messageCount >= chatBot.userId.messageLimit) {
+                chatBot.userId.extraMessages = Math.max(0, chatBot.userId.extraMessages - 1);
+            } else {
+                chatBot.userId.messageCount += 1;
+            }
+            await chatBot.userId.save();
+
+            // Update Chatbot Specific Analytics (Daily Chart)
             const today = new Date().toISOString().split('T')[0];
             chatBot.totalMessages = (chatBot.totalMessages || 0) + 1;
             if (!chatBot.analytics) chatBot.analytics = [];
             const dayEntry = chatBot.analytics.find(a => a.date === today);
-            if (dayEntry) dayEntry.messages += 1;
-            else chatBot.analytics.push({ date: today, messages: 1 });
+            if (dayEntry) {
+                dayEntry.messages += 1;
+            } else {
+                chatBot.analytics.push({ date: today, messages: 1 });
+            }
             if (chatBot.analytics.length > 30) chatBot.analytics.shift();
             await chatBot.save();
         }
 
         res.status(200).json({ success: true, data: response.content, messageCount: chatBot.userId.messageCount });
+
     } catch (error) {
         console.error("[Chat Controller Error]:", error);
         
