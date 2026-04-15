@@ -43,7 +43,8 @@ const getGlobalAnalytics = async (req, res) => {
             botStats.push({
                 _id: bot._id,
                 name: bot.name,
-                total: bot.totalMessages || 0
+                total: bot.totalMessages || 0,
+                isBYOK: bot.isBYOK
             });
 
             // Aggregate for multi-line charts
