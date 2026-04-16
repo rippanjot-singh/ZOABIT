@@ -3,6 +3,7 @@ const Subscription = require('../model/subscription.model');
 const userModel = require('../model/user.model');
 const chatBotModel = require('../model/chatBot.model');
 const { PLANS } = require('../config/plans');
+const { generateSlug } = require('../utils/bot.utils');
 
 const handleSubscriptionEvent = async (event, payload) => {
     const userId = payload.notes?.userId;
@@ -52,26 +53,32 @@ const handlePaymentCaptured = async (payload) => {
         return;
     }
 
-    const chatbotId = payload?.notes?.chatbotId;
-    if (type !== 'byok_activation' || !chatbotId) return;
+    const { chatbotId, chatbotName } = payload?.notes || {};
 
-    let updated = await chatBotModel.findOneAndUpdate(
+    if (type === 'byok_new_activation' && userId && chatbotName) {
+        // Create the bot from scratch after payment
+        let slug = generateSlug(chatbotName);
+        const existing = await chatBotModel.findOne({ slug });
+        if (existing) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+
+        const newBot = await chatBotModel.create({
+            name: chatbotName,
+            userId,
+            isBYOK: true,
+            paymentStatus: 'paid',
+            slug
+        });
+        console.log(`[Webhook] 🆕 BYOK Bot Created & Activated: ${newBot._id}`);
+        return;
+    }
+
+    if (type !== 'byok_activation' || (type === 'byok_activation' && !chatbotId)) return;
+
+    const updated = await chatBotModel.findOneAndUpdate(
         { _id: chatbotId },
         { paymentStatus: 'paid' },
         { new: true }
     );
-
-    if (!updated) {
-        updated = await chatBotModel.findOneAndUpdate(
-            { 
-                name: payload.notes.chatbotName, 
-                userId: payload.notes.userId,
-                isBYOK: true 
-            },
-            { paymentStatus: 'paid' },
-            { new: true }
-        );
-    }
 
     if (updated) console.log(`[Webhook] ✅ Chatbot Activated: ${updated._id}`);
 };

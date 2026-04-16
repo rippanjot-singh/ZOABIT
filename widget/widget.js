@@ -495,7 +495,8 @@
     refreshMessages();
 
     try {
-      const res = await fetch(`${backendOrigin}/api/chatbot/ask/${chatbotId}`, {
+      const currentUrl = encodeURIComponent(window.location.href);
+      const res = await fetch(`${backendOrigin}/api/chatbot/ask/${chatbotId}?currentUrl=${currentUrl}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: text, history: history.slice(0, -1) })
@@ -547,7 +548,8 @@
     });
 
     // Fetch config (apply styles after, re-render if window already open)
-    fetch(`${backendOrigin}/api/chatbot/config/${chatbotId}`)
+    const currentUrl = encodeURIComponent(window.location.href);
+    fetch(`${backendOrigin}/api/chatbot/config/${chatbotId}?currentUrl=${currentUrl}`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

@@ -39,9 +39,12 @@ const chatBotSchema = z.object({
         name: z.string().optional(),
         description: z.string().optional()
     })).optional(),
-    verifiedDomains: z.array(z.string()).max(2, "Maximum 2 domains allowed").optional(),
+    verifiedDomains: z.array(z.string()).optional(),
+    restrictedDomains: z.array(z.string()).optional(),
     isBYOK: z.boolean().optional(),
-    api: z.string().optional()
+    api: z.string().optional(),
+    slug: z.string().regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens").optional().or(z.literal('')),
+    isPublic: z.boolean().optional()
 });
 
 const updateChatBotSchema = chatBotSchema.partial();

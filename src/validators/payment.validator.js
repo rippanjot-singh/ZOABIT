@@ -1,7 +1,8 @@
 const { z } = require('zod');
 
 const createBYOKOrderSchema = z.object({
-    chatbotName: z.string().min(1, "Chatbot name is required")
+    chatbotName: z.string().min(1, "Chatbot name is required"),
+    chatbotId: z.string().optional() // If provided, reuse existing unpaid bot
 });
 
 const createSubscriptionSchema = z.object({

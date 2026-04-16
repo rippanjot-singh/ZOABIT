@@ -5,7 +5,7 @@ const { SystemMessage, ToolMessage, HumanMessage, AIMessage } = require("@langch
 const { createInquiryTool, buildIntegrationTools } = require("../services/ai.tools");
 const { encrypt } = require("../utils/apiEncrypt.utils");
 const { checkAndResetQuota, isQuotaExceeded } = require("../utils/usage.utils");
-const { isDomainVerified, isBYOKActive } = require("../utils/bot.utils");
+const { isDomainVerified, isBYOKActive, generateSlug } = require("../utils/bot.utils");
 const { chatBotSchema, updateChatBotSchema, askChatBotSchema } = require("../validators/chatBot.validator");
 
 const interactionModel = require("../model/interaction.model");
@@ -55,7 +55,7 @@ async function askChatBotController(req, res) {
             });
         }
 
-        if (!isDomainVerified(req.headers.origin, chatBot)) {
+        if (!isDomainVerified(req, chatBot)) {
             return res.status(403).json({
                 success: false,
                 message: "This domain is not authorized to use this widget.",
@@ -203,14 +203,23 @@ async function createChatBotController(req, res) {
             validated.model = 'open-mistral-nemo';
         }
 
+        // Determine slug: use provided slug or auto-generate from name
+        let slug = validated.slug || generateSlug(validated.name);
+
+        // Guarantee uniqueness by appending random suffix if collision
+        const existing = await chatBotModel.findOne({ slug });
+        if (existing) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+
         const chatbot = await chatBotModel.create({
             ...validated,
             EncryptedKey,
-            userId: req.user.userId
+            userId: req.user.userId,
+            slug
         });
         res.status(201).json({ success: true, data: chatbot });
     } catch (error) {
         if (error.name === 'ZodError') return res.status(400).json({ success: false, message: error.errors[0].message });
+        if (error.code === 11000) return res.status(409).json({ success: false, message: "That slug is already taken. Please choose a different one." });
         res.status(500).json({ success: false, message: error.message });
     }
 }
@@ -254,6 +263,11 @@ async function updateChatBotController(req, res) {
             } else delete validated.api;
         }
 
+        // If slug is being changed, verify it's not taken by another bot
+        if (validated.slug && validated.slug !== existingBot.slug) {
+            const slugConflict = await chatBotModel.findOne({ slug: validated.slug, _id: { $ne: req.params.chatbotId } });
+            if (slugConflict) return res.status(409).json({ success: false, message: "That slug is already taken. Please choose a different one." });
+        }
 
         const chatbot = await chatBotModel.findOneAndUpdate(
             { _id: req.params.chatbotId, userId: req.user.userId },
@@ -263,6 +277,7 @@ async function updateChatBotController(req, res) {
         res.status(200).json({ success: true, data: chatbot });
     } catch (error) {
         if (error.name === 'ZodError') return res.status(400).json({ success: false, message: error.errors[0].message });
+        if (error.code === 11000) return res.status(409).json({ success: false, message: "That slug is already taken. Please choose a different one." });
         res.status(500).json({ success: false, message: error.message });
     }
 }
@@ -278,8 +293,14 @@ async function deleteChatBotController(req, res) {
 
 async function getWidgetConfigController(req, res) {
     try {
-        const chatbot = await chatBotModel.findById(req.params.chatbotId).select("name style welcomeMessage prompt model integrations position faq greeting verifiedDomains isActive");
+        const chatbot = await chatBotModel.findById(req.params.chatbotId).select("name style welcomeMessage prompt model integrations position faq greeting verifiedDomains restrictedDomains isActive");
         if (!chatbot) return res.status(404).json({ success: false, message: "Not found" });
+
+        // Explicitly block the widget from even loading its config on restricted domains
+        if (!isDomainVerified(req, chatbot)) {
+            return res.status(403).json({ success: false, message: "Widget disabled for this domain." });
+        }
+
         res.status(200).json({ success: true, data: chatbot });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -300,6 +321,42 @@ async function toggleChatBotStatusController(req, res) {
     }
 }
 
+async function getPublicChatBotController(req, res) {
+    try {
+        const { slug } = req.params;
+        const chatbot = await chatBotModel.findOne({ slug }).select("name style greeting description integrations position faq greeting isActive isPublic");
+        if (!chatbot) return res.status(404).json({ success: false, message: "Chatbot not found" });
+        if (!chatbot.isPublic) return res.status(403).json({ success: false, message: "This chatbot is not publicly accessible" });
+        if (!chatbot.isActive) return res.status(403).json({ success: false, message: "This chatbot is currently inactive" });
+        
+        res.status(200).json({ success: true, data: chatbot });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+async function findSlugController(req, res) {
+    try {
+        const { slug } = req.params;
+        const { excludeId } = req.query;
+
+        // Validate slug format
+        if (!/^[a-z0-9-]+$/.test(slug)) {
+            return res.status(400).json({ success: false, message: "Invalid slug format" });
+        }
+
+        const query = { slug };
+        if (excludeId) {
+            query._id = { $ne: excludeId };
+        }
+
+        const existing = await chatBotModel.findOne(query);
+        res.status(200).json({ success: true, data: { available: !existing } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
 module.exports = {
     askChatBotController,
     createChatBotController,
@@ -308,5 +365,7 @@ module.exports = {
     deleteChatBotController,
     updateChatBotController,
     getWidgetConfigController,
-    toggleChatBotStatusController
+    toggleChatBotStatusController,
+    getPublicChatBotController,
+    findSlugController
 };

@@ -121,13 +121,11 @@ const chatBotSchema = new mongoose.Schema({
     },
     verifiedDomains: {
         type: [String],
-        default: [],
-        validate: {
-            validator: function (domains) {
-                return domains.length <= 2;
-            },
-            message: "You can only add up to 2 domains"
-        }
+        default: []
+    },
+    restrictedDomains: {
+        type: [String],
+        default: []
     },
     integrations: [{
         provider: { type: String }, // e.g., 'google_sheets'
@@ -142,7 +140,18 @@ const chatBotSchema = new mongoose.Schema({
     analytics: [{
         date: { type: String }, // Format: YYYY-MM-DD
         messages: { type: Number, default: 0 }
-    }]
+    }],
+    isPublic: {
+        type: Boolean,
+        default: false
+    },
+    slug: {
+        type: String,
+        unique: true,
+        lowercase: true,
+        trim: true,
+        sparse: true
+    }
 }, { timestamps: true });
 
 const chatBotModel = mongoose.models.chatBot || mongoose.model('chatBot', chatBotSchema);

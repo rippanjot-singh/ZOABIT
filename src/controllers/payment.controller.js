@@ -1,42 +1,38 @@
 const razorpay = require('../config/razorpay');
 const chatBotModel = require('../model/chatBot.model');
 const couponModel = require('../model/coupon.model');
+const { generateSlug } = require('../utils/bot.utils');
 const { createBYOKOrderSchema, createChatAddonOrderSchema } = require('../validators/payment.validator');
 
 const createBYOKOrder = async (req, res) => {
     try {
         const validated = createBYOKOrderSchema.parse(req.body);
-        const { chatbotName } = validated;
+        const { chatbotName, chatbotId } = validated;
         const userId = req.user.userId;
 
-        const initialBot = await chatBotModel.create({
-            name: chatbotName,
-            userId: userId,
-            isBYOK: true,
-            paymentStatus: 'not-paid',
-            provider: 'Mistral-Ai',
-            model: 'open-mistral-nemo',
-            prompt: 'You are a helpful AI assistant.',
-            greeting: 'Hello! How can I help you today?',
-            style: {
-                brandColor: { primary: '#2563eb', secondary: '#1d4ed8', accent: '#3b82f6' },
-                textColor: '#0f172a',
-                bgColor: '#ffffff',
-                corner: 'rounded',
-                icon: 'rounded',
-                replyStyle: { textColor: '#1e293b', bgColor: 'transparent', replyType: 'bubble' },
-                senderStyle: { textColor: '#ffffff', bgColor: '#2563eb', senderType: 'bubble' }
-            }
-        });
+        let bot;
+        let type = 'byok_activation';
+
+        if (chatbotId) {
+            // Reuse existing bot — verify ownership and eligibility
+            bot = await chatBotModel.findOne({ _id: chatbotId, userId, isBYOK: true });
+            if (!bot) return res.status(404).json({ success: false, message: 'BYOK bot not found or access denied.' });
+            if (bot.paymentStatus === 'paid') return res.status(400).json({ success: false, message: 'This bot is already activated.' });
+        } else {
+            // Fresh creation flow (from AgentTypeModal)
+            // We NO LONGER create the bot here to avoid "ghost" entries if payment is cancelled.
+            // We'll create it in the webhook after payment is captured.
+            type = 'byok_new_activation';
+        }
 
         const options = {
-            amount: 14900, 
+            amount: 14900,
             currency: 'INR',
-            receipt: `byok_${initialBot._id}`,
+            receipt: chatbotId ? `byok_${chatbotId}` : `byok_new_${userId.toString().slice(-6)}_${Date.now()}`,
             notes: {
-                type: 'byok_activation',
-                userId: userId,
-                chatbotId: initialBot._id.toString(),
+                type,
+                userId,
+                chatbotId: chatbotId || 'new',
                 chatbotName: chatbotName
             }
         };
@@ -46,14 +42,14 @@ const createBYOKOrder = async (req, res) => {
         res.status(200).json({
             success: true,
             orderId: order.id,
-            chatbotId: initialBot._id,
+            chatbotId: chatbotId || null,
             amount: order.amount,
             currency: order.currency,
             keyId: process.env.RAZORPAY_KEY_ID
         });
     } catch (error) {
         if (error.name === 'ZodError') return res.status(400).json({ success: false, message: error.errors[0].message });
-        console.error("[Razorpay Order Export Error]:", error);
+        console.error('[Razorpay Order Export Error]:', error);
         res.status(500).json({ error: error.message });
     }
 };
