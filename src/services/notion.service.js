@@ -40,6 +40,7 @@ async function searchNotion(accessToken) {
             id: item.id,
             type: item.object,
             name: item.properties?.title?.title?.[0]?.plain_text || item.title?.[0]?.plain_text || "Untitled",
+            parent: item.parent,
             lastModified: item.last_edited_time,
             url: item.url
         }));
