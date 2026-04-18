@@ -78,14 +78,14 @@ function getChatModel(chatBot) {
 
     return {
         model,
-        modelWithTools: model.bindTools([createInquiryTool])
+        modelWithTools: model // Stripped of default inquiry tool to force form usage
     };
 }
 
 function buildModelWithTools(chatBot, integrationTools = []) {
-    const { model, modelWithTools } = getChatModel(chatBot);
-    if (integrationTools.length === 0) return modelWithTools;
-    return model.bindTools([createInquiryTool, ...integrationTools]);
+    const { model } = getChatModel(chatBot);
+    if (integrationTools.length === 0) return model;
+    return model.bindTools(integrationTools);
 }
 
 const { JsonOutputParser } = require("@langchain/core/output_parsers");
