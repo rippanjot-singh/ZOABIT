@@ -77,8 +77,26 @@ async function searchNotionController(req, res) {
     }
 }
 
+/**
+ * Clears the user's Notion tokens.
+ */
+async function disconnectNotionController(req, res) {
+    try {
+        const user = await userModel.findById(req.user.userId);
+        if (user) {
+            user.notionTokens = undefined;
+            await user.save();
+        }
+        res.status(200).json({ success: true, message: "Notion disconnected successfully" });
+    } catch (error) {
+        console.error("[Notion Disconnect Error]:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
 module.exports = {
     authNotionController,
     notionCallbackController,
-    searchNotionController
+    searchNotionController,
+    disconnectNotionController
 };
