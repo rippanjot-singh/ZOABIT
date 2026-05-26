@@ -9,19 +9,19 @@ const PLANS = {
         name: 'Starter',
         chatbotLimit: 2,
         messageLimit: 1500,
-        price: 17900 // ₹179 in paise
+        price: 1500 //$15 in cents
     },
     pro: {
         name: 'Pro',
         chatbotLimit: 4,
         messageLimit: 4000,
-        price: 29900 // ₹299 in paise
+        price: 2900 // $29 in cents
     },
     enterprise: {
         name: 'Enterprise',
         chatbotLimit: 15,
         messageLimit: 20000,
-        price: 89900 // ₹899 in paise
+        price: 7900 // $79 in cents
     }
 };
 

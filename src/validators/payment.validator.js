@@ -17,7 +17,7 @@ const cancelSubscriptionSchema = z.object({
 });
 
 const createChatAddonOrderSchema = z.object({
-    amount: z.number().min(99, "Minimum order amount is ₹99"),
+    amount: z.number().min(9, "Minimum order amount is $9"),
     couponCode: z.string().optional()
 });
 

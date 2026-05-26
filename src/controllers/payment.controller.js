@@ -26,8 +26,8 @@ const createBYOKOrder = async (req, res) => {
         }
 
         const options = {
-            amount: 14900,
-            currency: 'INR',
+            amount: 1200,
+            currency: 'USD',
             receipt: chatbotId ? `byok_${chatbotId}` : `byok_new_${userId.toString().slice(-6)}_${Date.now()}`,
             notes: {
                 type,
@@ -75,11 +75,11 @@ const createChatAddonOrder = async (req, res) => {
             }
         }
 
-        const messagesToAdd = Math.floor((amount / 99) * 1200);
+        const messagesToAdd = Math.floor((amount / 9) * 1200);
 
         const options = {
             amount: Math.round(finalAmount * 100), // to paise
-            currency: 'INR',
+            currency: 'USD',
             receipt: `ca_${userId.toString().slice(-6)}_${Date.now()}`,
             notes: {
                 type: 'chat_addon',
